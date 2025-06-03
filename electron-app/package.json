@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "concurrently \"npm run electron\" \"npm run react\"",
+    "electron": "electron .",
+    "react": "cd renderer && npm start"
   },
   "keywords": [],
   "author": "",
