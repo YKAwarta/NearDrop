@@ -1,4 +1,4 @@
-const Bonjour = require('bonjour-service')
+const { Bonjour } = require('bonjour-service')
 
 class DiscoveryService {
   constructor() {
