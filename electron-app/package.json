@@ -7,15 +7,21 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "concurrently \"npm run electron\" \"npm run react\"",
     "electron": "electron .",
-    "react": "cd renderer && npm start"
+    "react": "cd renderer && npm start",
+    "lint": "npx eslint ..",
+    "lint:fix": "npx eslint --fix --ext .js,.jsx .",
+    "format": "npx prettier --write \"../**/*.{js,jsx,json,css,md}\""
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@babel/core": "^7.27.4",
+    "@babel/eslint-parser": "^7.27.5",
     "concurrently": "^9.1.2",
-    "electron": "^36.3.2"
+    "electron": "^36.3.2",
+    "eslint": "^9.28.0"
   },
   "dependencies": {
     "react": "^19.1.0",
