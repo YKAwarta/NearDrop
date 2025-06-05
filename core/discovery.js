@@ -20,8 +20,8 @@ class DiscoveryService {
       port: port,
       txt: {
         version: '1.0.0',
-        platform: process.platform
-      }
+        platform: process.platform,
+      },
     })
 
     console.log(`Advertising NearDrop service on port ${port} as "${name}"`)
@@ -32,7 +32,7 @@ class DiscoveryService {
   browseForDevices() {
     return new Promise((resolve) => {
       const devices = []
-      
+
       if (this.browser) {
         this.browser.stop()
       }
@@ -46,9 +46,12 @@ class DiscoveryService {
         const device = {
           id: service.name,
           name: service.name,
-          address: service.addresses && service.addresses.length > 0 ? service.addresses[0] : service.host,
+          address:
+            service.addresses && service.addresses.length > 0
+              ? service.addresses[0]
+              : service.host,
           port: service.port,
-          txt: service.txt || {}
+          txt: service.txt || {},
         }
 
         devices.push(device)
@@ -77,4 +80,4 @@ class DiscoveryService {
   }
 }
 
-module.exports = DiscoveryService 
+module.exports = DiscoveryService

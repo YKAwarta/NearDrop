@@ -11,7 +11,7 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
     },
   })
   window.loadURL('http://localhost:3000')
@@ -23,7 +23,7 @@ ipcMain.handle('discover:devices', async () => {
     if (!discoveryService) {
       discoveryService = new DiscoveryService()
     }
-    
+
     const devices = await discoveryService.browseForDevices()
     return devices
   } catch (error) {
@@ -34,7 +34,7 @@ ipcMain.handle('discover:devices', async () => {
 
 app.whenReady().then(() => {
   createWindow()
-  
+
   // Start advertising this device
   discoveryService = new DiscoveryService()
   discoveryService.advertise(5000)

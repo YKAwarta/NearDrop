@@ -8,7 +8,7 @@ function DeviceList({ file, onSend }) {
   const discoverDevices = async () => {
     setIsSearching(true)
     setError(null)
-    
+
     try {
       const discoveredDevices = await window.api.discoverDevices()
       setDevices(discoveredDevices)
@@ -26,10 +26,12 @@ function DeviceList({ file, onSend }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
+      <div
+        style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}
+      >
         <h2 style={{ margin: 0 }}>🖥️ Nearby Devices</h2>
-        <button 
-          onClick={discoverDevices} 
+        <button
+          onClick={discoverDevices}
           disabled={isSearching}
           style={{ marginLeft: '1rem', padding: '0.5rem 1rem' }}
         >
@@ -39,15 +41,17 @@ function DeviceList({ file, onSend }) {
 
       {isSearching && (
         <div style={{ display: 'flex', alignItems: 'center', padding: '1rem' }}>
-          <div style={{ 
-            width: '20px', 
-            height: '20px', 
-            border: '2px solid #f3f3f3',
-            borderTop: '2px solid #3498db',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            marginRight: '0.5rem'
-          }}></div>
+          <div
+            style={{
+              width: '20px',
+              height: '20px',
+              border: '2px solid #f3f3f3',
+              borderTop: '2px solid #3498db',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              marginRight: '0.5rem',
+            }}
+          ></div>
           <span>Searching for peers…</span>
         </div>
       )}
@@ -60,13 +64,14 @@ function DeviceList({ file, onSend }) {
 
       {!isSearching && devices.length === 0 && (
         <div style={{ padding: '1rem', color: '#666' }}>
-          No devices found. Make sure other NearDrop devices are running on the same network.
+          No devices found. Make sure other NearDrop devices are running on the
+          same network.
         </div>
       )}
 
       <ul style={{ listStyle: 'none', padding: 0 }}>
         {devices.map((device) => (
-          <li 
+          <li
             key={device.id}
             style={{
               display: 'flex',
@@ -77,7 +82,7 @@ function DeviceList({ file, onSend }) {
               border: '1px solid #ddd',
               borderRadius: '4px',
               cursor: 'pointer',
-              backgroundColor: '#f9f9f9'
+              backgroundColor: '#f9f9f9',
             }}
             onClick={() => file && onSend(device)}
           >
@@ -96,7 +101,7 @@ function DeviceList({ file, onSend }) {
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
-                cursor: file ? 'pointer' : 'not-allowed'
+                cursor: file ? 'pointer' : 'not-allowed',
               }}
             >
               Send
@@ -107,8 +112,12 @@ function DeviceList({ file, onSend }) {
 
       <style jsx>{`
         @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
+          0% {
+            transform: rotate(0deg);
+          }
+          100% {
+            transform: rotate(360deg);
+          }
         }
       `}</style>
     </div>
