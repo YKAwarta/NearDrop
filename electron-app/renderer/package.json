@@ -36,6 +36,7 @@
   "devDependencies": {
     "@babel/core": "^7.27.4",
     "@babel/eslint-parser": "^7.27.5",
+    "eslint-config-react-app": "^7.0.1",
     "eslint": "^9.28.0",
     "concurrently": "^9.1.2",
     "electron": "^36.3.2",
