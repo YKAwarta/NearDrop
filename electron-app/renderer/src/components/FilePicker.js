@@ -1,22 +1,25 @@
 import React from 'react'
 
 function FilePicker({ onFileSelect }) {
-  //Accepts onFileSelect prop from App.js, tells the function what to do when a file is selected
-  const handleChange = (e) => {
-    //File is selected, browser fires onChange event, that is handled here
-    const file = e.target.files[0] //Grab the first file the user selects (assuming single-file upload for now)
-    if (file) onFileSelect(file) //If the file is valid, we call onFileSelect and pass the file back to App.js
+  const handleFileSelect = async() => {
+    try {
+      const filePaths = await window.parseInt.showFilePicker()
+      if(filePaths && filePaths.length > 0) {
+        const files = filePaths.map(path => ({
+          path,
+          name: path.split('\\').pop().split('/').pop() //Extracts the file name from the full path
+        }))
+        onFileSelect(files) //Calls the onFileSelect prop with the selected file
+      }
+    } catch (error) {
+      console.error('Error selecting file:', error)
+    }
   }
 
   return (
-    <div>
-      <label>
-        <strong>Select a file to send:</strong>
-        <br />
-        <input type="file" onChange={handleChange} />{' '}
-        {/*onChange is bound to handleChange, so whenever the user picks a file, the component sends that file back up to App.js*/}
-      </label>
-    </div>
+    <button onClick={handleFileSelect} style={{ padding: '0.5rem 1rem', backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: '4px', fontSize: '1rem', cursor: 'pointer' }}>
+      📂 Select File
+    </button>
   )
 }
 

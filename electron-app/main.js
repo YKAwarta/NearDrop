@@ -1,8 +1,11 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
 const DiscoveryService = require('../core/discovery')
+const FileTransferService = require('../core/transfer')
+
 
 let discoveryService
+let fileTransferService
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -32,12 +35,36 @@ ipcMain.handle('discover:devices', async () => {
   }
 })
 
+ipcMain.handle('file:picker', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: 'All Files', extensions: ['*'] }],
+  })
+  return result.filePaths
+})
+
+ipcMain.handle('file:send', async (event, device, filePaths) => {
+  try{
+    if (!fileTransferService) {
+      fileTransferService = new FileTransferService()
+    }
+    await fileTransferService.sendFile(device, filePath)
+    return true
+  } catch(error) {
+    console.error('Error sending file:', error)
+    return false
+  }
+})
+
 app.whenReady().then(() => {
   createWindow()
 
   // Start advertising this device
   discoveryService = new DiscoveryService()
   discoveryService.advertise(5000)
+
+  fileTransferService = new FileTransferService()
+  fileTransferService.startReceiver()
 })
 
 app.on('before-quit', () => {

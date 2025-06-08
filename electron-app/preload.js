@@ -1,7 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
-// Expose protected methods that allow the renderer process to use
-// the ipcRenderer without exposing the entire object
+
 contextBridge.exposeInMainWorld('api', {
   discoverDevices: () => ipcRenderer.invoke('discover:devices'),
+  showFilePicker: () => ipcRenderer.invoke('file:picker'),
+  sendFile: (device, filePath) => ipcRenderer.invoke('file:send', device, filePath)
 })
