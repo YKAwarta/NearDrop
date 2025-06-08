@@ -17,7 +17,7 @@ function createWindow() {
       nodeIntegration: false,
     },
   })
-  window.loadURL('http://localhost:3000')
+  window.loadURL('http://localhost:3000') //For now, dev server. Eventually, packaged file.
 }
 
 // Handle device discovery IPC call
