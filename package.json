@@ -1,4 +1,14 @@
 {
+  "name": "neardrop",
+  "version": "1.0.0",
+  "description": "Universal peer-to-peer file sharing application",
+  "main": "electron-app/main.js",
+  "scripts": {
+    "start": "concurrently \"npm run start:renderer\" \"npm run start:main\"",
+    "start:renderer": "cd electron-app/renderer && npm start",
+    "start:main": "wait-on http://localhost:3000 && electron electron-app/main.js",
+    "build": "cd electron-app/renderer && npm run build"
+  },
   "devDependencies": {
     "@babel/eslint-parser": "^7.27.5",
     "@babel/preset-react": "^7.27.1",
