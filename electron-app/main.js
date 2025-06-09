@@ -21,16 +21,18 @@ function createWindow() {
   })
   mainWindow.loadURL('http://localhost:3000') //For now, dev server. Eventually, packaged file.
   mainWindow.webContents.openDevTools() //Temporarily, for debugging purposes.
-  logNetworkInfo()
+  logNetworkInfo() //Log network for debugging
 }
 
 function logNetworkInfo() {
   const interfaces = os.networkInterfaces()
   console.log('Network Interfaces:')
-  Object.keys(interfaces).forEach((interfaceName) => {
+  Object.keys(interfaces).forEach(interfaceName => {
     console.log(`Interface: ${interfaceName}:`)
-    interfaces[interfaceName].forEach((details) => {
-      console.log(`  Address: ${details.address}, Family: ${details.family}, Internal: ${details.internal}`)
+    interfaces[interfaceName].forEach(details => {
+      console.log(
+        `  Address: ${details.address}, Family: ${details.family}, Internal: ${details.internal}`
+      )
     })
   })
 }
@@ -51,26 +53,26 @@ ipcMain.handle('discover:devices', async () => {
   }
 })
 
-ipcMain.handle('file:picker', async (event) => {
+ipcMain.handle('file:picker', async event => {
   console.log('IPC call to open file picker')
-  try{
-    const result = await dialog.showOpenDialog(mainWindow,{
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile', 'multiSelections'],
       filters: [{ name: 'All Files', extensions: ['*'] }],
-  })
-  console.log('File picker result:', result)
-  return result.filePaths || []
-  } catch(error) {
+    })
+    console.log('File picker result:', result)
+    return result.filePaths || []
+  } catch (error) {
     console.error('Error picking file:', error)
     return []
   }
 })
 
 ipcMain.handle('file:send', async (event, device, filePath) => {
-  console.log('IPC call to send file:', {device, filePath})
+  console.log('IPC call to send file:', { device, filePath })
 
-  try{
-    if(!device){
+  try {
+    if (!device) {
       console.error('No device selected for file transfer')
       return false
     }
@@ -78,15 +80,21 @@ ipcMain.handle('file:send', async (event, device, filePath) => {
       console.error('No file selected for transfer')
       return false
     }
-    const absoluteFilePath = path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath)
+    const absoluteFilePath = path.isAbsolute(filePath)
+      ? filePath
+      : path.join(process.cwd(), filePath)
     if (!fileTransferService) {
       fileTransferService = new FileTransferService()
     }
-    console.log('Sending file to device:', {deviceName: device.name, deviceAddress: device.address, filePath: absoluteFilePath})
+    console.log('Sending file to device:', {
+      deviceName: device.name,
+      deviceAddress: device.address,
+      filePath: absoluteFilePath,
+    })
     await fileTransferService.sendFile(device, absoluteFilePath)
     console.log('File sent successfully')
     return true
-  } catch(error) {
+  } catch (error) {
     console.error('Error sending file:', error)
     return false
   }

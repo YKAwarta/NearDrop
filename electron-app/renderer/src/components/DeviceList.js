@@ -26,9 +26,7 @@ function DeviceList({ file, onSend }) {
 
   return (
     <div>
-      <div
-        style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
         <h2 style={{ margin: 0 }}>🖥️ Nearby Devices</h2>
         <button
           onClick={discoverDevices}
@@ -57,20 +55,17 @@ function DeviceList({ file, onSend }) {
       )}
 
       {error && (
-        <div style={{ color: 'red', padding: '0.5rem', marginBottom: '1rem' }}>
-          {error}
-        </div>
+        <div style={{ color: 'red', padding: '0.5rem', marginBottom: '1rem' }}>{error}</div>
       )}
 
       {!isSearching && devices.length === 0 && (
         <div style={{ padding: '1rem', color: '#666' }}>
-          No devices found. Make sure other NearDrop devices are running on the
-          same network.
+          No devices found. Make sure other NearDrop devices are running on the same network.
         </div>
       )}
 
       <ul style={{ listStyle: 'none', padding: 0 }}>
-        {devices.map((device) => (
+        {devices.map(device => (
           <li
             key={device.id}
             style={{
@@ -91,7 +86,7 @@ function DeviceList({ file, onSend }) {
             </span>
             <button
               disabled={!file}
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation()
                 onSend(device)
               }}
