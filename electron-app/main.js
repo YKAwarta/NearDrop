@@ -161,6 +161,18 @@ app.whenReady().then(() => {
       if (mainWindow) {
         mainWindow.webContents.send('transfer:rejected', rejectionInfo)
       }
+    },
+    onSendProgress: (progressInfo) => {
+      // Send progress updates to renderer for sender side
+      if (mainWindow) {
+        mainWindow.webContents.send('transfer:send-progress', progressInfo)
+      }
+    },
+    onReceiveProgress: (progressInfo) => {
+      // Send progress updates to renderer for receiver side
+      if (mainWindow) {
+        mainWindow.webContents.send('transfer:receive-progress', progressInfo)
+      }
     }
   })
   fileTransferService.startReceiver()

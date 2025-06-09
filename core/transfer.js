@@ -20,6 +20,8 @@ class FileTransferService {
     this.onFileReceived = options.onFileReceived || (() => {}) // Callback for file received notifications
     this.onTransferRequest = options.onTransferRequest || (() => {}) // Callback for transfer requests (needs user approval)
     this.onTransferRejected = options.onTransferRejected || (() => {}) // Callback when transfer is rejected
+    this.onSendProgress = options.onSendProgress || (() => {}) // Callback for sending progress updates
+    this.onReceiveProgress = options.onReceiveProgress || (() => {}) // Callback for receiving progress updates
   }
 
  /**
@@ -125,8 +127,40 @@ class FileTransferService {
           if (response === 'ACCEPT') {
             console.log('Transfer approved! Sending file...')
             
-            //Now send the actual file
+            //Now send the actual file with progress tracking
+            const fileStats = fs.statSync(normalizedPath)
+            const totalSize = fileStats.size
+            let sentBytes = 0
+            let lastProgressUpdate = 0
+            const startTime = Date.now()
+            
             const fileStream = fs.createReadStream(normalizedPath)
+            
+            // Track progress as data is sent (throttled to every 25ms)
+            fileStream.on('data', (chunk) => {
+              sentBytes += chunk.length
+              const now = Date.now()
+              
+              // Only update progress every 25ms to make it visible
+              if (now - lastProgressUpdate >= 25 || sentBytes === totalSize) {
+                const progress = Math.round((sentBytes / totalSize) * 100)
+                const elapsed = (now - startTime) / 1000 // seconds
+                const speed = elapsed > 0 ? sentBytes / elapsed : 0 // bytes per second
+                
+                // Emit progress update
+                this.onSendProgress({
+                  fileName: path.basename(normalizedPath),
+                  deviceName: device.name,
+                  progress: progress,
+                  sentBytes: sentBytes,
+                  totalSize: totalSize,
+                  speed: speed // bytes per second
+                })
+                
+                lastProgressUpdate = now
+              }
+            })
+            
             fileStream.pipe(client)
 
             fileStream.on('end', () => {
@@ -189,6 +223,10 @@ class FileTransferService {
       let fileStream = null
       let transferApproved = false
       let savePath = null
+      let fileMetadata = null
+      let receivedBytes = 0
+      let startTime = null
+      let lastProgressUpdate = 0
 
       //Handle incoming data chunks from the socket
       socket.on('data', async (chunk) => {
@@ -218,6 +256,10 @@ class FileTransferService {
                   // User approved and chose save location
                   transferApproved = true
                   savePath = userResponse.savePath
+                  fileMetadata = request
+                  receivedBytes = 0
+                  startTime = Date.now()
+                  lastProgressUpdate = 0
                   
                   console.log(`Transfer approved. Will save to: ${savePath}`)
                   socket.write('ACCEPT')
@@ -246,9 +288,30 @@ class FileTransferService {
             }
           }
         } else {
-          // We're in file transfer phase - write file data
-          if (fileStream) {
+          // We're in file transfer phase - write file data and track progress
+          if (fileStream && fileMetadata) {
             fileStream.write(chunk)
+            receivedBytes += chunk.length
+            const now = Date.now()
+            
+            // Only update progress every 25ms to make it visible  
+            if (now - lastProgressUpdate >= 25 || receivedBytes === fileMetadata.fileSize) {
+              const progress = Math.round((receivedBytes / fileMetadata.fileSize) * 100)
+              const elapsed = (now - startTime) / 1000 // seconds
+              const speed = elapsed > 0 ? receivedBytes / elapsed : 0 // bytes per second
+              
+              // Emit progress update
+              this.onReceiveProgress({
+                fileName: fileMetadata.fileName,
+                senderName: fileMetadata.senderName,
+                progress: progress,
+                receivedBytes: receivedBytes,
+                totalSize: fileMetadata.fileSize,
+                speed: speed // bytes per second
+              })
+              
+              lastProgressUpdate = now // Update for next throttle check
+            }
           }
         }
       })

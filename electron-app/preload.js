@@ -10,10 +10,22 @@ contextBridge.exposeInMainWorld('api', {
   onTransferRejected: (callback) => {
     ipcRenderer.on('transfer:rejected', (event, rejectionInfo) => callback(rejectionInfo))
   },
+  onSendProgress: (callback) => {
+    ipcRenderer.on('transfer:send-progress', (event, progressInfo) => callback(progressInfo))
+  },
+  onReceiveProgress: (callback) => {
+    ipcRenderer.on('transfer:receive-progress', (event, progressInfo) => callback(progressInfo))
+  },
   removeFileReceivedListener: () => {
     ipcRenderer.removeAllListeners('file:received')
   },
   removeTransferRejectedListener: () => {
     ipcRenderer.removeAllListeners('transfer:rejected')
+  },
+  removeSendProgressListener: () => {
+    ipcRenderer.removeAllListeners('transfer:send-progress')
+  },
+  removeReceiveProgressListener: () => {
+    ipcRenderer.removeAllListeners('transfer:receive-progress')
   }
 })
