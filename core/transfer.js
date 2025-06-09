@@ -17,6 +17,7 @@ class FileTransferService {
     this.host = options.host || '0.0.0.0' // Listen on all interfaces by default
     this.port = Number(options.port) || 5001 //Ensure port is a number, default to 5001
     this.downloadPath = this.getDownloadPath() //Robust download path handling
+    this.onFileReceived = options.onFileReceived || (() => {}) // Callback for file received notifications
   }
 
  /**
@@ -167,6 +168,7 @@ class FileTransferService {
       //Track metadata and file stream
       let metadata = ''
       let fileStream = null
+      let fileMetadata = null
 
       //Handle incoming data chunks from the socket
       socket.on('data', chunk => {
@@ -178,12 +180,12 @@ class FileTransferService {
           if (metadataEndIndex !== -1) {
             try {
               //Parse metadata from the first chunk
-              const metadataObj = JSON.parse(metadata.slice(0, metadataEndIndex))
+              fileMetadata = JSON.parse(metadata.slice(0, metadataEndIndex))
               //Construct full file path for saving
-              const fullPath = path.join(this.downloadPath, metadataObj.fileName)
+              const fullPath = path.join(this.downloadPath, fileMetadata.fileName)
 
               //Log transfer details
-              console.log(`Receiving file: ${metadataObj.fileName} (${metadataObj.fileSize} bytes)`)
+              console.log(`Receiving file: ${fileMetadata.fileName} (${fileMetadata.fileSize} bytes)`)
               console.log(`Saving to: ${fullPath}`)
 
               //Create write stream for the file
@@ -209,9 +211,17 @@ class FileTransferService {
 
       //Handle end of successful file transfer
       socket.on('end', () => {
-        if (fileStream) {
+        if (fileStream && fileMetadata) {
           fileStream.end()
           console.log(`File received and saved successfully.`)
+          
+          // Trigger notification callback
+          this.onFileReceived({
+            fileName: fileMetadata.fileName,
+            fileSize: fileMetadata.fileSize,
+            senderAddress: socket.remoteAddress,
+            downloadPath: this.downloadPath
+          })
         }
       })
 

@@ -107,7 +107,14 @@ app.whenReady().then(() => {
   discoveryService = new DiscoveryService()
   discoveryService.advertise(5001)
 
-  fileTransferService = new FileTransferService()
+  fileTransferService = new FileTransferService({
+    onFileReceived: (fileInfo) => {
+      console.log('File received, sending notification to renderer:', fileInfo)
+      if (mainWindow) {
+        mainWindow.webContents.send('file:received', fileInfo)
+      }
+    }
+  })
   fileTransferService.startReceiver()
 })
 
