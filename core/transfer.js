@@ -7,35 +7,21 @@ class FileTransferService {
     constructor(options = {}) {
         this.host = options.host || '0.0.0.0'
         this.port = Number(options.port) || 5001;
-        this.downloadPath = this.getDownloadPath(options.downloadPath)
+        this.downloadPath = this.getDownloadPath()
     }
 
-    getDownloadPath(customPath) {
-        if(typeof customPath === 'string' && customPath.trim() !== ''){
-            try{
-                fs.mkdirSync(customPath, { recursive: true });
-                return customPath;
-            } catch (err) {
-                console.warn(`Error creating custom download path: ${err.message}`);
-            }
+    getDownloadPath() {
+        const downloadPath = path.join(os.homedir(), 'Downloads')
+
+        try{
+            fs.mkdirSync(downloadPath, { recursive: true });
+
+            console.log(`Download path is set to: ${downloadPath}`);
+            return downloadPath;
+        } catch (err) {
+            console.error(`Error creating download path: ${err.message}`);
+            throw err
         }
-
-        const downloadPaths = [
-            path.join(os.homedir(), 'Downloads'),
-            path.join(os.homedir(), 'download'),
-            path.join(os.tmpdir(), 'neardrop-downloads'),
-        ]
-
-        for (const downloadPath of downloadPaths){
-            try{
-                fs.mkdirSync(downloadPath, { recursive: true });
-                return downloadPath;
-            } catch (err) {
-                console.warn(`Error creating download path ${downloadPath}: ${err.message}`);
-            }
-        }
-
-        throw new Error('Unable to create a valid download path.')
     }
     
     normalizePath(filePath){
@@ -43,8 +29,7 @@ class FileTransferService {
             throw new Error(`Invalid file path: ${filePath} is not an absolute path.`);
         }
     return path.normalize(filePath);
-}
-
+    }
 
     sendFile(device, filePath){
         return new Promise((resolve, reject) => {
@@ -129,8 +114,6 @@ class FileTransferService {
 
                             console.log(`Receiving file: ${metadataObj.fileName} (${metadataObj.fileSize} bytes)`)
                             console.log(`Saving to: ${fullPath}`)
-
-                            fs.mkdirSync(path.dirname(fullPath), { recursive: true });
 
                             fileStream = fs.createWriteStream(fullPath)
                             
