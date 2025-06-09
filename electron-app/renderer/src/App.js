@@ -77,6 +77,11 @@ function App() {
         timestamp: Date.now()
       })
       
+      // Clear selected file after successful transfer
+      if (result.success) {
+        setFile(null)
+      }
+      
       // Auto-hide popup after 4 seconds
       setTimeout(() => {
         setSendResultPopup(null)
