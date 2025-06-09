@@ -1,4 +1,6 @@
 const { Bonjour } = require('bonjour-service')
+const os = require('os')
+const net = require('net')
 
 class DiscoveryService {
   constructor() {
@@ -8,11 +10,28 @@ class DiscoveryService {
     this.discoveredDevices = new Map()
   }
 
+  getLocalIPAddresses() {
+    const interfaces = os.networkInterfaces()
+    const ipAddresses = []
+
+    Object.keys(interfaces).forEach((interfaceName) => {
+      interfaces[interfaceName].forEach((details) => {
+        if(!details.internal && details.family === 'IPv4') {
+          ipAddresses.push(details.address)
+        }
+      })
+    })
+    return ipAddresses
+  }
+
   // Advertise this machine as a _neardrop._tcp service
-  advertise(port = 5000, name = require('os').hostname()) {
+  advertise(port = 5001, name = os.hostname()) {
     if (this.service) {
       this.service.stop()
     }
+
+    const localIPs = this.getLocalIPAddresses()
+    console.log('Local IP Addresses:', localIPs)
 
     this.service = this.bonjour.publish({
       name: name,
@@ -21,6 +40,7 @@ class DiscoveryService {
       txt: {
         version: '1.0.0',
         platform: process.platform,
+        ips: localIPs.join(',')
       },
     })
 
@@ -43,19 +63,21 @@ class DiscoveryService {
           return
         }
 
+        const ipv4Addresses = (service.addresses || [])
+          .filter((addr) => net.isIPv4(addr)) || (typeof addr === 'string' && addr.includes('.'))
+
         const device = {
           id: service.name,
           name: service.name,
-          address:
-            service.addresses && service.addresses.length > 0
-              ? service.addresses[0]
-              : service.host,
-          port: service.port,
+          address: ipv4Addresses.length > 0
+            ? ipv4Addresses[0]
+            : (service.referer?.address || service.host),
+          port: service.port || 5001,
           txt: service.txt || {},
         }
 
-        devices.push(device)
         console.log('Discovered device:', device)
+        devices.push(device)
       })
 
       // Return results after 3 seconds of browsing

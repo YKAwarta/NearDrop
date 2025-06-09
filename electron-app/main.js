@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
+const os = require('os')
 const DiscoveryService = require('../core/discovery')
 const FileTransferService = require('../core/transfer')
 
@@ -20,6 +21,18 @@ function createWindow() {
   })
   mainWindow.loadURL('http://localhost:3000') //For now, dev server. Eventually, packaged file.
   mainWindow.webContents.openDevTools() //Temporarily, for debugging purposes.
+  logNetworkInfo()
+}
+
+function logNetworkInfo() {
+  const interfaces = os.networkInterfaces()
+  console.log('Network Interfaces:')
+  Object.keys(interfaces).forEach((interfaceName) => {
+    console.log(`Interface: ${interfaceName}:`)
+    interfaces[interfaceName].forEach((details) => {
+      console.log(`  Address: ${details.address}, Family: ${details.family}, Internal: ${details.internal}`)
+    })
+  })
 }
 
 // Handle device discovery IPC call
@@ -30,6 +43,7 @@ ipcMain.handle('discover:devices', async () => {
     }
 
     const devices = await discoveryService.browseForDevices()
+    console.log('Discovered devices:', devices)
     return devices
   } catch (error) {
     console.error('Error discovering devices:', error)
@@ -43,6 +57,7 @@ ipcMain.handle('file:picker', async () => {
       properties: ['openFile', 'multiSelections'],
       filters: [{ name: 'All Files', extensions: ['*'] }],
   })
+  console.log('File picker result:', result)
   return result.filePaths || []
   } catch(error) {
     console.error('Error picking file:', error)
@@ -51,6 +66,8 @@ ipcMain.handle('file:picker', async () => {
 })
 
 ipcMain.handle('file:send', async (event, device, filePath) => {
+  console.log('IPC call to send file:', {device, filePath})
+
   try{
     if(!device){
       console.error('No device selected for file transfer')
@@ -77,7 +94,7 @@ app.whenReady().then(() => {
 
   // Start advertising this device
   discoveryService = new DiscoveryService()
-  discoveryService.advertise(5000)
+  discoveryService.advertise(5001)
 
   fileTransferService = new FileTransferService()
   fileTransferService.startReceiver()

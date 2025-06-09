@@ -41,7 +41,7 @@ function App() {
           <p>📄 File Selected: {file.name}</p>
           {sendStatus === 'sending' && <p>🔄 Sending file...</p>}
           {sendStatus === 'success' && <p>✅ File sent successfully!</p>}
-          {sendStatus === 'error' && <p>❌ File send fialed.</p>}
+          {sendStatus === 'error' && <p>❌ File send failed.</p>}
         </div>
       )}
       <DeviceList file={file} onSend={handleSend} />
