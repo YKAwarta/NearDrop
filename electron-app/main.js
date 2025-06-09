@@ -78,11 +78,12 @@ ipcMain.handle('file:send', async (event, device, filePath) => {
       console.error('No file selected for transfer')
       return false
     }
+    const absoluteFilePath = path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath)
     if (!fileTransferService) {
       fileTransferService = new FileTransferService()
     }
-    console.log('Sending file to device:', {deviceName: device.name, deviceAddress: device.address, filePath: filePath})
-    await fileTransferService.sendFile(device, filePath)
+    console.log('Sending file to device:', {deviceName: device.name, deviceAddress: device.address, filePath: absoluteFilePath})
+    await fileTransferService.sendFile(device, absoluteFilePath)
     console.log('File sent successfully')
     return true
   } catch(error) {

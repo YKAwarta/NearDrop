@@ -22,7 +22,7 @@ class FileTransferService {
 
         const downloadPaths = [
             path.join(os.homedir(), 'Downloads'),
-            path.join(os.homedir(), 'downloads'),
+            path.join(os.homedir(), 'download'),
             path.join(os.tmpdir(), 'neardrop-downloads'),
         ]
 
@@ -37,28 +37,39 @@ class FileTransferService {
 
         throw new Error('Unable to create a valid download path.')
     }
+    
+    normalizePath(filePath){
+        if(!path.isAbsolute(filePath)){
+            throw new Error(`Invalid file path: ${filePath} is not an absolute path.`);
+        }
+    return path.normalize(filePath);
+}
 
 
     sendFile(device, filePath){
         return new Promise((resolve, reject) => {
-            console.log(`Attempting to send file: ${filePath} to device: ${device.name} at ${device.address}:${device.port}`)
+            try {
+                
+            const normalizedPath = this.normalizePath(filePath)
+
+            console.log(`Attempting to send file: ${normalizedPath} to device: ${device.name} at ${device.address}:${device.port}`)
 
             if (!device || !device.address) {
                 return reject(new Error('Invalid device information provided'));
             }
 
-            if (!fs.existsSync(filePath)) {
-                return reject(new Error(`File does not exist: ${filePath}`));
+            if (!fs.existsSync(normalizedPath)) {
+                return reject(new Error(`File does not exist: ${normalizedPath}`));
             }
 
             const client = new net.Socket();
-            client.setTimeout(30000); // Set a timeout for the connection
+            client.setTimeout(60000); // Set a 1 minute timeout for the connection
 
             client.connect(device.port, device.address, () => {
                 console.log(`Connected to device: ${device.name} at ${device.address}:${device.port}`)
                 
-                const fileName = path.basename(filePath)
-                const fileStats = fs.statSync(filePath);
+                const fileName = path.basename(normalizedPath)
+                const fileStats = fs.statSync(normalizedPath);
                 
                 const metadata = JSON.stringify({
                     fileName,
@@ -68,7 +79,7 @@ class FileTransferService {
 
                 client.write(Buffer.from(metadata + '\n'))
 
-                const fileStream = fs.createReadStream(filePath);
+                const fileStream = fs.createReadStream(normalizedPath);
                 fileStream.pipe(client)
 
                 fileStream.on('end', () => {
@@ -93,8 +104,12 @@ class FileTransferService {
                 client.destroy();
                 reject(new Error('Connection timed out'));
             })
-        })
-    }
+        } catch (err) {
+            console.error(`Error sending file: ${err.message}`);
+            reject(err);
+        }
+    })
+}
 
     startReceiver() {
         const server = net.createServer((socket) => {
@@ -114,6 +129,8 @@ class FileTransferService {
 
                             console.log(`Receiving file: ${metadataObj.fileName} (${metadataObj.fileSize} bytes)`)
                             console.log(`Saving to: ${fullPath}`)
+
+                            fs.mkdirSync(path.dirname(fullPath), { recursive: true });
 
                             fileStream = fs.createWriteStream(fullPath)
                             
