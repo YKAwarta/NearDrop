@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const DiscoveryService = require('../core/discovery')
 const FileTransferService = require('../core/transfer')
@@ -6,18 +6,21 @@ const FileTransferService = require('../core/transfer')
 
 let discoveryService
 let fileTransferService
+let mainWindow
 
 function createWindow() {
-  const window = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      devTools: true, // Enable DevTools for debugging
     },
   })
-  window.loadURL('http://localhost:3000') //For now, dev server. Eventually, packaged file.
+  mainWindow.loadURL('http://localhost:3000') //For now, dev server. Eventually, packaged file.
+  mainWindow.webContents.openDevTools() //Temporarily, for debugging purposes.
 }
 
 // Handle device discovery IPC call
@@ -36,11 +39,16 @@ ipcMain.handle('discover:devices', async () => {
 })
 
 ipcMain.handle('file:picker', async () => {
-  const result = await dialog.showOpenDialog({
-    properties: ['openFile', 'multiSelections'],
-    filters: [{ name: 'All Files', extensions: ['*'] }],
+  try{
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'All Files', extensions: ['*'] }],
   })
-  return result.filePaths
+  return result.filePaths || []
+  } catch(error) {
+    console.error('Error picking file:', error)
+    return []
+  }
 })
 
 ipcMain.handle('file:send', async (event, device, filePaths) => {

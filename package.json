@@ -7,7 +7,9 @@
     "start": "concurrently \"npm run start:renderer\" \"npm run start:main\"",
     "start:renderer": "cd electron-app/renderer && npm start",
     "start:main": "wait-on http://localhost:3000 && electron electron-app/main.js",
-    "build": "cd electron-app/renderer && npm run build"
+    "build": "cd electron-app/renderer && npm run build",
+    "lint": "npx eslint .",
+    "lint:fix": "npx eslint --fix --ext .js,.jsx ."
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.27.5",

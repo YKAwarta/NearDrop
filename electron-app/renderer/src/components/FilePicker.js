@@ -3,7 +3,7 @@ import React from 'react'
 function FilePicker({ onFileSelect }) {
   const handleFileSelect = async() => {
     try {
-      const filePaths = await window.parseInt.showFilePicker()
+      const filePaths = await window.api.showFilePicker()
       if(filePaths && filePaths.length > 0) {
         const files = filePaths.map(path => ({
           path,
