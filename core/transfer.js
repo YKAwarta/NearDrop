@@ -6,9 +6,38 @@ const os = require('os');
 class FileTransferService {
     constructor(options = {}) {
         this.host = options.host || '0.0.0.0'
-        this.port = options.port || 5001;
-        this.downloadPath = options.downloadPath || path.join(os.homedir, 'Downloads');
+        this.port = Number(options.port) || 5001;
+        this.downloadPath = this.getDownloadPath(options.downloadPath)
     }
+
+    getDownloadPath(customPath) {
+        if(typeof customPath === 'string' && customPath.trim() !== ''){
+            try{
+                fs.mkdirSync(customPath, { recursive: true });
+                return customPath;
+            } catch (err) {
+                console.warn(`Error creating custom download path: ${err.message}`);
+            }
+        }
+
+        const downloadPaths = [
+            path.join(os.homedir(), 'Downloads'),
+            path.join(os.homedir(), 'downloads'),
+            path.join(os.tmpdir(), 'neardrop-downloads'),
+        ]
+
+        for (const downloadPath of downloadPaths){
+            try{
+                fs.mkdirSync(downloadPath, { recursive: true });
+                return downloadPath;
+            } catch (err) {
+                console.warn(`Error creating download path ${downloadPath}: ${err.message}`);
+            }
+        }
+
+        throw new Error('Unable to create a valid download path.')
+    }
+
 
     sendFile(device, filePath){
         return new Promise((resolve, reject) => {
@@ -49,14 +78,16 @@ class FileTransferService {
                 })
                 fileStream.on('error', (err) => {
                     console.error(`Error reading file ${fileName}:`, err);
-                    client.end();
-                    reject();
+                    client.destroy();
+                    reject(err);
                 })
             })
 
             client.on('error', (err) => {
-                reject(`Error sending file: ${err.message}`);
+                console.error(`Error connecting to device ${device.name}:`, err);
+                reject(err);
             })
+
             client.on('timeout', () => {
                 console.error(`Connection to ${device.name} timed out`);
                 client.destroy();
@@ -67,6 +98,7 @@ class FileTransferService {
 
     startReceiver() {
         const server = net.createServer((socket) => {
+            console.log(`New connection from ${socket.remoteAddress}:${socket.remotePort}`)
             let metadata = ''
             let fileStream = null
 
@@ -81,6 +113,7 @@ class FileTransferService {
                             const fullPath = path.join(this.downloadPath, metadataObj.fileName)
 
                             console.log(`Receiving file: ${metadataObj.fileName} (${metadataObj.fileSize} bytes)`)
+                            console.log(`Saving to: ${fullPath}`)
 
                             fileStream = fs.createWriteStream(fullPath)
                             

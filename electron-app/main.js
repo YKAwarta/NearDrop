@@ -51,9 +51,10 @@ ipcMain.handle('discover:devices', async () => {
   }
 })
 
-ipcMain.handle('file:picker', async () => {
+ipcMain.handle('file:picker', async (event) => {
+  console.log('IPC call to open file picker')
   try{
-    const result = await dialog.showOpenDialog({
+    const result = await dialog.showOpenDialog(mainWindow,{
       properties: ['openFile', 'multiSelections'],
       filters: [{ name: 'All Files', extensions: ['*'] }],
   })
@@ -82,6 +83,7 @@ ipcMain.handle('file:send', async (event, device, filePath) => {
     }
     console.log('Sending file to device:', {deviceName: device.name, deviceAddress: device.address, filePath: filePath})
     await fileTransferService.sendFile(device, filePath)
+    console.log('File sent successfully')
     return true
   } catch(error) {
     console.error('Error sending file:', error)
