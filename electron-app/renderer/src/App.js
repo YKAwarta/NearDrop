@@ -8,16 +8,23 @@ function App() {
 
   const handleFileSelect = (selectedFiles) => {
     //Callback passed to FilePicker. When a file is selected, FilePicker calls this and updates the file state.
-    setFile(selectedFiles[0])
+    const selectedFile = selectedFiles[0] //Assuming single file selection, we take the first 
+    console.log('Selected file:', selectedFile) //Log the selected file for debugging
+    setFile(selectedFile)
     setSendStatus(null) //Reset send status when a new file is selected
   }
 
   const handleSend = async (device) => {
-    if(!file) return
+    if(!file){
+      console.error('No file selected for sending')
+      return
+    }
 
+    console.log('Sending file:', file, 'to device:', device) //Log the file and device for debugging
     setSendStatus('sending')
     try{
       const success = await window.api.sendFile(device, file.path)
+      console.log('Send file result:', success)
       setSendStatus(success ? 'success' : 'error')
     } catch (error) {
       console.error('Error sending file:', error)

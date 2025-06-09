@@ -3,15 +3,14 @@ const path = require('path')
 const DiscoveryService = require('../core/discovery')
 const FileTransferService = require('../core/transfer')
 
-
 let discoveryService
 let fileTransferService
 let mainWindow
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 1200,
+    height: 800,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -51,11 +50,20 @@ ipcMain.handle('file:picker', async () => {
   }
 })
 
-ipcMain.handle('file:send', async (event, device, filePaths) => {
+ipcMain.handle('file:send', async (event, device, filePath) => {
   try{
+    if(!device){
+      console.error('No device selected for file transfer')
+      return false
+    }
+    if (!filePath || filePath.length === 0) {
+      console.error('No file selected for transfer')
+      return false
+    }
     if (!fileTransferService) {
       fileTransferService = new FileTransferService()
     }
+    console.log('Sending file to device:', {deviceName: device.name, deviceAddress: device.address, filePath: filePath})
     await fileTransferService.sendFile(device, filePath)
     return true
   } catch(error) {
