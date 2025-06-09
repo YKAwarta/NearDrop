@@ -7,7 +7,13 @@ contextBridge.exposeInMainWorld('api', {
   onFileReceived: (callback) => {
     ipcRenderer.on('file:received', (event, fileInfo) => callback(fileInfo))
   },
+  onTransferRejected: (callback) => {
+    ipcRenderer.on('transfer:rejected', (event, rejectionInfo) => callback(rejectionInfo))
+  },
   removeFileReceivedListener: () => {
     ipcRenderer.removeAllListeners('file:received')
+  },
+  removeTransferRejectedListener: () => {
+    ipcRenderer.removeAllListeners('transfer:rejected')
   }
 })

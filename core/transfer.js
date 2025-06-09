@@ -18,6 +18,8 @@ class FileTransferService {
     this.port = Number(options.port) || 5001 //Ensure port is a number, default to 5001
     this.downloadPath = this.getDownloadPath() //Robust download path handling
     this.onFileReceived = options.onFileReceived || (() => {}) // Callback for file received notifications
+    this.onTransferRequest = options.onTransferRequest || (() => {}) // Callback for transfer requests (needs user approval)
+    this.onTransferRejected = options.onTransferRejected || (() => {}) // Callback when transfer is rejected
   }
 
  /**
@@ -77,7 +79,7 @@ class FileTransferService {
         const normalizedPath = this.normalizePath(filePath)
 
         console.log(
-          `Attempting to send file: ${normalizedPath} to device: ${device.name} at ${device.address}:${device.port}`
+          `Requesting to send file: ${normalizedPath} to device: ${device.name} at ${device.address}:${device.port}`
         )
 
         //Input validation
@@ -92,44 +94,62 @@ class FileTransferService {
 
         //Create a TCP socket connection to the device
         const client = new net.Socket()
-
-        //Long timeout to accoomodate for slow networks and large files.
         client.setTimeout(60000)
 
         //Establish connection to target device
         client.connect(device.port, device.address, () => {
           console.log(`Connected to device: ${device.name} at ${device.address}:${device.port}`)
 
-          //Extract file metadata for transfers
+          //Extract file metadata for request
           const fileName = path.basename(normalizedPath)
           const fileStats = fs.statSync(normalizedPath)
 
-          //Send metadata as JSON string before transfer
-          //Enables future protocol enhancements
-          const metadata = JSON.stringify({
+          //Send transfer request instead of direct file transfer
+          const transferRequest = JSON.stringify({
+            type: 'TRANSFER_REQUEST',
             fileName,
             fileSize: fileStats.size,
             fileType: path.extname(filePath),
+            senderName: require('os').hostname()
           })
 
-          //Send metadata with newline delimiter
-          client.write(Buffer.from(metadata + '\n'))
+          console.log(`Sending transfer request for: ${fileName}`)
+          client.write(Buffer.from(transferRequest + '\n'))
+        })
 
-          //Stream file contents
-          const fileStream = fs.createReadStream(normalizedPath)
-          fileStream.pipe(client)
+        //Handle response from receiver
+        client.on('data', (data) => {
+          const response = data.toString().trim()
+          console.log(`Received response: ${response}`)
 
-          //Success and error handling for file stream
-          fileStream.on('end', () => {
-            console.log(`File ${fileName} sent successfully to ${device.name}`)
+          if (response === 'ACCEPT') {
+            console.log('Transfer approved! Sending file...')
+            
+            //Now send the actual file
+            const fileStream = fs.createReadStream(normalizedPath)
+            fileStream.pipe(client)
+
+            fileStream.on('end', () => {
+              console.log(`File sent successfully to ${device.name}`)
+              client.end()
+              resolve({ success: true, message: 'File sent successfully!' })
+            })
+            
+            fileStream.on('error', err => {
+              console.error(`Error reading file:`, err)
+              client.destroy()
+              reject(err)
+            })
+            
+          } else if (response === 'REJECT') {
+            console.log('Transfer rejected by receiver')
             client.end()
-            resolve()
-          })
-          fileStream.on('error', err => {
-            console.error(`Error reading file ${fileName}:`, err)
+            resolve({ success: false, message: 'Transfer rejected by recipient' })
+          } else {
+            console.error('Unknown response from receiver:', response)
             client.destroy()
-            reject(err)
-          })
+            reject(new Error('Unknown response from receiver'))
+          }
         })
 
         //Handle connection-level errors
@@ -165,69 +185,93 @@ class FileTransferService {
     const server = net.createServer(socket => {
       console.log(`New connection from ${socket.remoteAddress}:${socket.remotePort}`)
 
-      //Track metadata and file stream
-      let metadata = ''
+      let requestData = ''
       let fileStream = null
-      let fileMetadata = null
+      let transferApproved = false
+      let savePath = null
 
       //Handle incoming data chunks from the socket
-      socket.on('data', chunk => {
-        //First chunk contains metadata, subsequent chunks contain file data
-        if (!fileStream) {
-          metadata += chunk.toString()
+      socket.on('data', async (chunk) => {
+        if (!transferApproved) {
+          // We're in request phase - accumulate request data
+          requestData += chunk.toString()
 
-          const metadataEndIndex = metadata.indexOf('\n')
-          if (metadataEndIndex !== -1) {
+          const requestEndIndex = requestData.indexOf('\n')
+          if (requestEndIndex !== -1) {
             try {
-              //Parse metadata from the first chunk
-              fileMetadata = JSON.parse(metadata.slice(0, metadataEndIndex))
-              //Construct full file path for saving
-              const fullPath = path.join(this.downloadPath, fileMetadata.fileName)
+              //Parse transfer request
+              const request = JSON.parse(requestData.slice(0, requestEndIndex))
+              
+              if (request.type === 'TRANSFER_REQUEST') {
+                console.log(`Transfer request from ${request.senderName}: ${request.fileName} (${request.fileSize} bytes)`)
+                
+                // Show approval prompt to user and get save path
+                const userResponse = await this.onTransferRequest({
+                  fileName: request.fileName,
+                  fileSize: request.fileSize,
+                  fileType: request.fileType,
+                  senderName: request.senderName,
+                  senderAddress: socket.remoteAddress
+                })
 
-              //Log transfer details
-              console.log(`Receiving file: ${fileMetadata.fileName} (${fileMetadata.fileSize} bytes)`)
-              console.log(`Saving to: ${fullPath}`)
-
-              //Create write stream for the file
-              fileStream = fs.createWriteStream(fullPath)
-
-              //Write remaining data after metadata
-              const remainingChunk = metadata.slice(metadataEndIndex + 1)
-              if (remainingChunk) {
-                fileStream.write(Buffer.from(remainingChunk))
+                if (userResponse.approved && userResponse.savePath) {
+                  // User approved and chose save location
+                  transferApproved = true
+                  savePath = userResponse.savePath
+                  
+                  console.log(`Transfer approved. Will save to: ${savePath}`)
+                  socket.write('ACCEPT')
+                  
+                  // Create write stream for the chosen location
+                  fileStream = fs.createWriteStream(savePath)
+                  
+                } else {
+                  // User rejected
+                  console.log('Transfer rejected by user')
+                  socket.write('REJECT')
+                  socket.end()
+                  
+                  // Notify about rejection
+                  this.onTransferRejected({
+                    fileName: request.fileName,
+                    senderName: request.senderName,
+                    reason: 'User declined'
+                  })
+                }
               }
             } catch (err) {
-                //Handle parsing errors
-              console.error('Error parsing metadata:', err)
-              socket.destroy()
-              return
+              console.error('Error parsing transfer request:', err)
+              socket.write('REJECT')
+              socket.end()
             }
           }
         } else {
-            //Subsequent chunks are file data
-          fileStream.write(chunk)
+          // We're in file transfer phase - write file data
+          if (fileStream) {
+            fileStream.write(chunk)
+          }
         }
       })
 
-      //Handle end of successful file transfer
+      //Handle end of connection
       socket.on('end', () => {
-        if (fileStream && fileMetadata) {
+        if (fileStream && transferApproved) {
           fileStream.end()
-          console.log(`File received and saved successfully.`)
+          console.log(`File received and saved successfully to: ${savePath}`)
           
           // Trigger notification callback
           this.onFileReceived({
-            fileName: fileMetadata.fileName,
-            fileSize: fileMetadata.fileSize,
+            fileName: path.basename(savePath),
+            fileSize: fs.statSync(savePath).size,
             senderAddress: socket.remoteAddress,
-            downloadPath: this.downloadPath
+            savePath: savePath
           })
         }
       })
 
-      //Handle errors during file transfer
+      //Handle errors during transfer
       socket.on('error', err => {
-        console.error(`Error receiving file: ${err.message}`)
+        console.error(`Error during transfer: ${err.message}`)
         if (fileStream) {
           fileStream.end()
         }

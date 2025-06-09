@@ -68,17 +68,44 @@ ipcMain.handle('file:picker', async event => {
   }
 })
 
+// Helper function to show transfer approval dialog
+async function showTransferApprovalDialog(requestInfo) {
+  const response = await dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    buttons: ['Accept', 'Decline'],
+    defaultId: 0,
+    title: 'Incoming File Transfer',
+    message: `${requestInfo.senderName} wants to send you a file`,
+    detail: `File: ${requestInfo.fileName}\nSize: ${(requestInfo.fileSize / 1024 / 1024).toFixed(2)} MB\n\nDo you want to accept this file?`
+  })
+  
+  return response.response === 0 // 0 = Accept, 1 = Decline
+}
+
+// Helper function to show save dialog
+async function showSaveDialog(fileName) {
+  const response = await dialog.showSaveDialog(mainWindow, {
+    title: 'Save File As...',
+    defaultPath: fileName,
+    filters: [
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  })
+  
+  return response.canceled ? null : response.filePath
+}
+
 ipcMain.handle('file:send', async (event, device, filePath) => {
   console.log('IPC call to send file:', { device, filePath })
 
   try {
     if (!device) {
       console.error('No device selected for file transfer')
-      return false
+      return { success: false, message: 'No device selected' }
     }
     if (!filePath || filePath.length === 0) {
       console.error('No file selected for transfer')
-      return false
+      return { success: false, message: 'No file selected' }
     }
     const absoluteFilePath = path.isAbsolute(filePath)
       ? filePath
@@ -91,12 +118,13 @@ ipcMain.handle('file:send', async (event, device, filePath) => {
       deviceAddress: device.address,
       filePath: absoluteFilePath,
     })
-    await fileTransferService.sendFile(device, absoluteFilePath)
-    console.log('File sent successfully')
-    return true
+    
+    const result = await fileTransferService.sendFile(device, absoluteFilePath)
+    console.log('File send result:', result)
+    return result
   } catch (error) {
     console.error('Error sending file:', error)
-    return false
+    return { success: false, message: error.message }
   }
 })
 
@@ -112,6 +140,26 @@ app.whenReady().then(() => {
       console.log('File received, sending notification to renderer:', fileInfo)
       if (mainWindow) {
         mainWindow.webContents.send('file:received', fileInfo)
+      }
+    },
+    onTransferRequest: async (requestInfo) => {
+      console.log('Transfer request received, showing approval dialog:', requestInfo)
+      
+      // Show approval dialog to user
+      const approved = await showTransferApprovalDialog(requestInfo)
+      
+      if (approved) {
+        // Show save dialog to choose location
+        const savePath = await showSaveDialog(requestInfo.fileName)
+        return { approved: true, savePath }
+      } else {
+        return { approved: false, savePath: null }
+      }
+    },
+    onTransferRejected: (rejectionInfo) => {
+      console.log('Transfer was rejected:', rejectionInfo)
+      if (mainWindow) {
+        mainWindow.webContents.send('transfer:rejected', rejectionInfo)
       }
     }
   })
