@@ -2,6 +2,7 @@ const { Bonjour } = require('bonjour-service')
 const os = require('os')
 const net = require('net')
 const dns = require('dns')
+const crypto = require('crypto')
 
  /**
   * DiscoveryService manages network device discovery using mDNS (Bonjour).
@@ -17,6 +18,21 @@ class DiscoveryService {
     this.service = null // Holds the advertised service instance
     this.browser = null
     this.discoveredDevices = new Map() //Cache for discovered devices
+    this.deviceId = this.generateDeviceId() // Generate a unique device ID
+  }
+
+  //Generate a consistent, unique device identifier
+  generateDeviceId() {
+    //Combine multiple system identified for uniqueness
+    const identifiers = [os.hostname(), os.platform(), os.networkInterfaces().en0?.[0]?.mac || 'NO_MAC']
+    
+    //Create a hash to generate a unique ID
+    return crypto
+      .createHash('md5')
+      .update(identifiers.join('|'))
+      .digest('hex')
+      .slice(0, 12) // Shorten to 16 characters for simplicity
+  
   }
 
   
@@ -117,10 +133,11 @@ class DiscoveryService {
         version: '1.0.0',
         platform: process.platform,
         ips: localIPs.join(','),
+        deviceId: this.deviceId,
       },
     })
 
-    console.log(`Advertising NearDrop service on port ${port} as "${name}"`)
+    console.log(`Advertising NearDrop service on port ${port} as "${name}" with ID ${this.deviceId}`)
     return this.service
   }
 
@@ -146,8 +163,10 @@ class DiscoveryService {
       this.browser = this.bonjour.find({ type: 'neardrop' }, service => {
         console.log('Found service:', service)
 
+        const serviceId = service.txt?.deviceId
+
         // Skip discovering our own service
-        if (service.name === os.hostname()) {
+        if (serviceId === this.deviceId) {
           return
         }
 
@@ -165,10 +184,9 @@ class DiscoveryService {
         })
 
         //FALLBACK: To alternative address sources
-        const validAddress =
-          serviceAddresses.length > 0
+        const validAddress = serviceAddresses.length > 0
             ? serviceAddresses[0]
-            : service.referer?.address || service.host
+            : (service.referer?.address || service.host)
 
         if (!validAddress) {
           console.warn('No valid address found for service:', service)
@@ -177,8 +195,8 @@ class DiscoveryService {
 
         //Construct device object with essential properties
         const device = {
-          id: service.name,
-          name: service.name,
+          id: serviceId || service.name,
+          name: service.name.replace('-local', ''),
           address: validAddress,
           port: service.port || 5001,
           txt: service.txt || {},
