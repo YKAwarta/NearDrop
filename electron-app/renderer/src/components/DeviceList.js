@@ -5,6 +5,7 @@ function DeviceList({ file, onSend }) {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState(null)
   const [initialLoad, setInitialLoad] = useState(true)
+  const [autoRefresh, setAutoRefresh] = useState(true)
 
   const fetchDevices = async () => {
     // Don't show full loading state if we already have devices
@@ -30,343 +31,499 @@ function DeviceList({ file, onSend }) {
 
   useEffect(() => {
     fetchDevices()
-    // Auto-refresh every 10 seconds
-    const interval = setInterval(fetchDevices, 10000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const getDeviceIcon = (platform) => {
-    if (!platform) return '💻'
     
-    switch (platform.toLowerCase()) {
-      case 'darwin':
-      case 'macos':
-        return '🍎'
-      case 'win32':
-      case 'windows':
-        return '🪟'
-      case 'linux':
-        return '🐧'
-      default:
-        return '💻'
+    // Only set up auto-refresh interval if autoRefresh is enabled
+    let interval
+    if (autoRefresh) {
+      interval = setInterval(fetchDevices, 10000)
+    }
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval)
+      }
+    }
+  }, [autoRefresh])
+
+  const getPlatformIcon = (platform) => {
+    switch (platform) {
+      case 'darwin': return '🍎'
+      case 'win32': return '🪟'
+      case 'linux': return '🐧'
+      default: return '💻'
     }
   }
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'online': return '#22c55e'
-      case 'offline': return '#6b7280'
-      default: return '#22c55e'
-    }
+  const handleSend = (device) => {
+    onSend(device)
   }
 
-  // Only show initial loading state when we have no devices and it's the first load
-  if (initialLoad && devices.length === 0) {
+  const toggleAutoRefresh = () => {
+    setAutoRefresh(!autoRefresh)
+  }
+
+  if (initialLoad) {
     return (
       <div style={{
-        backgroundColor: '#1a1a1a',
-        border: '1px solid #374151',
-        borderRadius: '12px',
-        padding: '2rem',
-        margin: '1rem 0',
+        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02))',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        borderRadius: '20px',
+        padding: '3rem',
         textAlign: 'center',
-        backdropFilter: 'blur(10px)'
+        margin: '2rem 0',
+        backdropFilter: 'blur(15px)',
+        boxShadow: '0 15px 35px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+        animation: 'slideInFromBottom 0.6s ease-out'
       }}>
-        <div style={{ 
-          fontSize: '1.2rem',
-          color: '#60a5fa',
-          marginBottom: '1rem'
-        }}>🔄 Discovering devices...</div>
+        {/* Animated loading rings */}
         <div style={{
-          width: '32px',
-          height: '32px',
-          border: '3px solid #374151',
-          borderTop: '3px solid #60a5fa',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite',
-          margin: '0 auto'
-        }}></div>
-      </div>
-    )
-  }
-
-  if (error && devices.length === 0) {
-    return (
-      <div style={{
-        backgroundColor: '#1a1a1a',
-        border: '1px solid #ef4444',
-        borderRadius: '12px',
-        padding: '2rem',
-        margin: '1rem 0',
-        textAlign: 'center',
-        backdropFilter: 'blur(10px)'
-      }}>
-        <div style={{ 
-          color: '#ef4444',
-          fontSize: '1.1rem',
-          marginBottom: '1rem'
-        }}>❌ {error}</div>
-        <button
-          onClick={fetchDevices}
-          style={{
-            backgroundColor: '#3b82f6',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '0.75rem 1.5rem',
-            fontSize: '0.9rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
-          }}
-          onMouseOver={(e) => {
-            e.target.style.backgroundColor = '#2563eb'
-            e.target.style.transform = 'translateY(-1px)'
-          }}
-          onMouseOut={(e) => {
-            e.target.style.backgroundColor = '#3b82f6'
-            e.target.style.transform = 'translateY(0)'
-          }}
-        >
-          🔄 Retry
-        </button>
-      </div>
-    )
-  }
-
-  if (!initialLoad && devices.length === 0) {
-    return (
-      <div style={{
-        backgroundColor: '#1a1a1a',
-        border: '1px solid #374151',
-        borderRadius: '12px',
-        padding: '2rem',
-        margin: '1rem 0',
-        textAlign: 'center',
-        backdropFilter: 'blur(10px)'
-      }}>
-        <div style={{ 
-          fontSize: '1.2rem',
-          color: '#9ca3af',
-          marginBottom: '1rem'
-        }}>📡 No devices found</div>
-        <p style={{ 
-          color: '#6b7280',
+          position: 'relative',
+          display: 'inline-block',
+          marginBottom: '1.5rem'
+        }}>
+          <div style={{
+            width: '60px',
+            height: '60px',
+            border: '3px solid rgba(59, 130, 246, 0.2)',
+            borderTop: '3px solid #3b82f6',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            willChange: 'transform'
+          }} />
+          <div style={{
+            position: 'absolute',
+            top: '10px',
+            left: '10px',
+            width: '40px',
+            height: '40px',
+            border: '2px solid rgba(139, 92, 246, 0.2)',
+            borderTop: '2px solid #8b5cf6',
+            borderRadius: '50%',
+            animation: 'spin 1.5s linear infinite reverse',
+            willChange: 'transform'
+          }} />
+        </div>
+        
+        <h3 style={{
+          color: '#ffffff',
+          fontSize: '1.3rem',
+          fontWeight: '600',
+          marginBottom: '0.5rem',
+          background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+          backgroundClip: 'text',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent'
+        }}>
+          🔍 Discovering devices...
+        </h3>
+        <p style={{
+          color: 'rgba(255, 255, 255, 0.6)',
           fontSize: '0.9rem',
-          margin: '0 0 1.5rem 0'
-        }}>Make sure other NearDrop devices are running on your network</p>
+          margin: 0,
+          animation: 'pulse 2s ease-in-out infinite'
+        }}>
+          Scanning network for nearby devices
+        </p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05))',
+        border: '1px solid rgba(239, 68, 68, 0.3)',
+        borderRadius: '20px',
+        padding: '3rem',
+        textAlign: 'center',
+        margin: '2rem 0',
+        backdropFilter: 'blur(15px)',
+        animation: 'shake 0.5s ease-in-out'
+      }}>
+        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
+        <h3 style={{ color: '#ef4444', marginBottom: '0.5rem' }}>Error</h3>
+        <p style={{ color: 'rgba(255, 255, 255, 0.7)', margin: '0 0 1.5rem 0' }}>{error}</p>
         <button
           onClick={fetchDevices}
           style={{
-            backgroundColor: '#3b82f6',
+            background: 'linear-gradient(135deg, #ef4444, #dc2626)',
             color: 'white',
             border: 'none',
-            borderRadius: '8px',
-            padding: '0.75rem 1.5rem',
-            fontSize: '0.9rem',
-            fontWeight: '600',
+            borderRadius: '12px',
+            padding: '0.8rem 1.5rem',
             cursor: 'pointer',
-            transition: 'all 0.2s',
-            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
-          }}
-          onMouseOver={(e) => {
-            e.target.style.backgroundColor = '#2563eb'
-            e.target.style.transform = 'translateY(-1px)'
-          }}
-          onMouseOut={(e) => {
-            e.target.style.backgroundColor = '#3b82f6'
-            e.target.style.transform = 'translateY(0)'
+            transition: 'all 0.2s ease',
+            fontWeight: '600'
           }}
         >
-          🔄 Refresh
+          🔄 Try Again
         </button>
       </div>
     )
   }
 
   return (
-    <div style={{ margin: '1rem 0' }}>
+    <div style={{
+      margin: '2rem 0',
+      animation: 'fadeIn 0.6s ease-out'
+    }}>
+      {/* Header with refresh button and auto-refresh toggle */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: '1rem'
+        marginBottom: '1.5rem',
+        animation: 'slideInFromLeft 0.6s ease-out'
       }}>
         <h2 style={{
-          margin: '0',
-          fontSize: '1.5rem',
+          color: '#ffffff',
+          fontSize: '1.8rem',
           fontWeight: '700',
-          color: '#ffffff'
-        }}>Available Devices ({devices.length})</h2>
-        <button
-          onClick={fetchDevices}
-          disabled={isRefreshing}
-          style={{
-            backgroundColor: 'transparent',
-            color: isRefreshing ? '#6b7280' : '#60a5fa',
-            border: '1px solid #374151',
-            borderRadius: '8px',
-            padding: '0.5rem 1rem',
-            fontSize: '0.85rem',
-            fontWeight: '500',
-            cursor: isRefreshing ? 'not-allowed' : 'pointer',
-            transition: 'all 0.2s',
+          margin: 0,
+          background: 'linear-gradient(135deg, #ffffff, #e2e8f0)',
+          backgroundClip: 'text',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          animation: 'titleShimmer 4s ease-in-out infinite'
+        }}>
+          🌐 Nearby Devices {devices.length > 0 && `(${devices.length})`}
+        </h2>
+        
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem'
+        }}>
+          {/* Auto-refresh toggle */}
+          <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem'
-          }}
-          onMouseOver={(e) => {
-            if (!isRefreshing) {
-              e.target.style.backgroundColor = '#374151'
-              e.target.style.borderColor = '#60a5fa'
-            }
-          }}
-          onMouseOut={(e) => {
-            if (!isRefreshing) {
-              e.target.style.backgroundColor = 'transparent'
-              e.target.style.borderColor = '#374151'
-            }
-          }}
-        >
-          <span style={{
-            animation: isRefreshing ? 'spin 1s linear infinite' : 'none'
-          }}>🔄</span>
-          {isRefreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
-      </div>
-
-      <div style={{
-        display: 'grid',
-        gap: '1rem',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))'
-      }}>
-        {devices.map((device) => (
-          <div
-            key={device.id}
+            gap: '0.5rem',
+            background: 'rgba(255, 255, 255, 0.05)',
+            padding: '0.5rem 0.8rem',
+            borderRadius: '12px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(8px)'
+          }}>
+            <span style={{
+              fontSize: '0.85rem',
+              color: 'rgba(255, 255, 255, 0.7)',
+              fontWeight: '500'
+            }}>
+              Auto-refresh
+            </span>
+            <button
+              onClick={toggleAutoRefresh}
+              style={{
+                position: 'relative',
+                width: '42px',
+                height: '22px',
+                borderRadius: '11px',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                background: autoRefresh 
+                  ? 'linear-gradient(135deg, #10b981, #06b6d4)' 
+                  : 'rgba(255, 255, 255, 0.2)',
+                boxShadow: autoRefresh 
+                  ? '0 4px 12px rgba(16, 185, 129, 0.3)' 
+                  : '0 2px 8px rgba(0, 0, 0, 0.2)'
+              }}
+            >
+              <div style={{
+                position: 'absolute',
+                top: '2px',
+                left: autoRefresh ? '22px' : '2px',
+                width: '18px',
+                height: '18px',
+                borderRadius: '50%',
+                background: 'white',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+              }} />
+            </button>
+            {autoRefresh && (
+              <span style={{
+                fontSize: '0.7rem',
+                color: '#10b981',
+                fontWeight: '600',
+                animation: 'pulse 2s ease-in-out infinite'
+              }}>
+                ON
+              </span>
+            )}
+          </div>
+          
+          {/* Manual refresh button */}
+          <button
+            onClick={fetchDevices}
+            disabled={isRefreshing}
             style={{
-              backgroundColor: '#1a1a1a',
-              border: '1px solid #374151',
+              background: isRefreshing ? 
+                'linear-gradient(135deg, rgba(59, 130, 246, 0.5), rgba(139, 92, 246, 0.5))' :
+                'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2))',
+              border: `1px solid ${isRefreshing ? 'rgba(59, 130, 246, 0.8)' : 'rgba(59, 130, 246, 0.4)'}`,
               borderRadius: '12px',
-              padding: '1.5rem',
-              transition: 'all 0.3s ease',
-              cursor: file ? 'pointer' : 'default',
-              opacity: file ? 1 : 0.7,
-              backdropFilter: 'blur(10px)',
-              position: 'relative',
-              overflow: 'hidden'
+              color: '#ffffff',
+              padding: '0.7rem 1.2rem',
+              cursor: isRefreshing ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s ease-out',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              backdropFilter: 'blur(8px)',
+              fontSize: '0.9rem',
+              willChange: 'transform, background'
             }}
             onMouseOver={(e) => {
-              if (file) {
-                e.target.style.borderColor = '#60a5fa'
-                e.target.style.backgroundColor = '#262626'
-                e.target.style.transform = 'translateY(-2px)'
-                e.target.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.3)'
+              if (!isRefreshing) {
+                e.target.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.4), rgba(139, 92, 246, 0.4))'
+                e.target.style.transform = 'translate3d(0, -2px, 0) scale(1.03)'
               }
             }}
             onMouseOut={(e) => {
-              if (file) {
-                e.target.style.borderColor = '#374151'
-                e.target.style.backgroundColor = '#1a1a1a'
-                e.target.style.transform = 'translateY(0)'
-                e.target.style.boxShadow = 'none'
-              }
-            }}
-            onClick={() => {
-              if (file) {
-                onSend(device)
+              if (!isRefreshing) {
+                e.target.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2))'
+                e.target.style.transform = 'translate3d(0, 0, 0) scale(1)'
               }
             }}
           >
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '1rem'
+            <span style={{
+              animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
+              fontSize: '1rem',
+              willChange: 'transform'
             }}>
+              🔄
+            </span>
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
+      </div>
+
+      {devices.length === 0 ? (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02))',
+          border: '2px dashed rgba(59, 130, 246, 0.3)',
+          borderRadius: '20px',
+          padding: '4rem 2rem',
+          textAlign: 'center',
+          animation: 'pulse 4s ease-in-out infinite'
+        }}>
+          <div style={{
+            fontSize: '4rem',
+            marginBottom: '1.5rem',
+            animation: 'float0 6s ease-in-out infinite'
+          }}>🔍</div>
+          <h3 style={{
+            color: 'rgba(255, 255, 255, 0.8)',
+            fontSize: '1.3rem',
+            fontWeight: '600',
+            marginBottom: '0.8rem'
+          }}>
+            No devices found
+          </h3>
+          <p style={{
+            color: 'rgba(255, 255, 255, 0.5)',
+            fontSize: '1rem',
+            lineHeight: '1.6',
+            margin: 0
+          }}>
+            Make sure other devices are running NearDrop<br />
+            and connected to the same network
+          </p>
+        </div>
+      ) : (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+          gap: '1.5rem'
+        }}>
+          {devices.map((device, index) => (
+            <div
+              key={device.id}
+              style={{
+                background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03))',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '20px',
+                padding: '2rem',
+                transition: 'all 0.2s ease-out',
+                backdropFilter: 'blur(15px)',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                position: 'relative',
+                overflow: 'hidden',
+                cursor: 'pointer',
+                animation: `slideInFromBottom 0.6s ease-out ${index * 0.1}s both`,
+                willChange: 'transform, background'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.transform = 'translate3d(0, -6px, 0) scale(1.01)'
+                e.currentTarget.style.boxShadow = '0 15px 50px rgba(59, 130, 246, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.15)'
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.06), rgba(139, 92, 246, 0.03))'
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.transform = 'translate3d(0, 0, 0) scale(1)'
+                e.currentTarget.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03))'
+              }}
+            >
+              {/* Simplified status indicator */}
+              <div style={{
+                position: 'absolute',
+                top: '1rem',
+                right: '1rem',
+                width: '12px',
+                height: '12px',
+                background: 'linear-gradient(45deg, #10b981, #06b6d4)',
+                borderRadius: '50%',
+                animation: 'pulse 3s ease-in-out infinite',
+                boxShadow: '0 0 8px rgba(16, 185, 129, 0.4)',
+                willChange: 'transform'
+              }} />
+
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.75rem'
+                gap: '1rem',
+                marginBottom: '1.5rem'
               }}>
-                <span style={{ 
-                  fontSize: '1.5rem'
-                }}>{getDeviceIcon(device.txt?.platform)}</span>
-                <div>
-                  <div style={{
-                    fontWeight: '600',
-                    fontSize: '1rem',
+                <div style={{
+                  fontSize: '2.5rem',
+                  animation: 'iconBounce 4s ease-in-out infinite',
+                  filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3))'
+                }}>
+                  {getPlatformIcon(device.txt?.platform)}
+                </div>
+                
+                <div style={{ flex: 1 }}>
+                  <h3 style={{
                     color: '#ffffff',
-                    marginBottom: '0.25rem'
+                    fontSize: '1.2rem',
+                    fontWeight: '700',
+                    margin: '0 0 0.3rem 0',
+                    background: 'linear-gradient(135deg, #ffffff, #e2e8f0)',
+                    backgroundClip: 'text',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent'
                   }}>
-                    {device.name}
-                  </div>
+                    {device.name.replace('-local', '').replace(/Waleeds-MacBook-Pro-\d+-?/, 'MacBook Pro')}
+                  </h3>
+                  
                   <div style={{
-                    fontSize: '0.8rem',
-                    color: '#9ca3af',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.5rem'
+                    gap: '0.8rem',
+                    fontSize: '0.85rem',
+                    color: 'rgba(255, 255, 255, 0.6)'
                   }}>
                     <span style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      backgroundColor: getStatusColor('online')
-                    }}></span>
-                    {device.address}
+                      background: 'rgba(59, 130, 246, 0.2)',
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: '8px',
+                      fontSize: '0.75rem',
+                      fontWeight: '500'
+                    }}>
+                      {device.txt?.platform || 'Unknown'}
+                    </span>
+                    <span>•</span>
+                    <span>{device.address}:{device.port}</span>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div style={{
-              fontSize: '0.8rem',
-              color: '#6b7280',
-              marginBottom: file ? '1rem' : '0'
-            }}>
-              Platform: {device.txt?.platform || 'Unknown'} • Port: {device.port}
-            </div>
+              {file && (
+                <button
+                  onClick={() => handleSend(device)}
+                  style={{
+                    width: '100%',
+                    background: 'linear-gradient(135deg, #10b981, #06b6d4)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '12px',
+                    padding: '1rem',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease-out',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.8rem',
+                    boxShadow: '0 4px 20px rgba(16, 185, 129, 0.3)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    willChange: 'transform, background'
+                  }}
+                  onMouseOver={(e) => {
+                    e.target.style.background = 'linear-gradient(135deg, #059669, #0891b2)'
+                    e.target.style.transform = 'translate3d(0, -2px, 0)'
+                    e.target.style.boxShadow = '0 6px 25px rgba(16, 185, 129, 0.35)'
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.background = 'linear-gradient(135deg, #10b981, #06b6d4)'
+                    e.target.style.transform = 'translate3d(0, 0, 0)'
+                    e.target.style.boxShadow = '0 4px 20px rgba(16, 185, 129, 0.3)'
+                  }}
+                >
+                  {/* Simplified button shine effect */}
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: '-100%',
+                    width: '100%',
+                    height: '100%',
+                    background: 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent)',
+                    animation: 'buttonShine 4s ease-in-out infinite',
+                    pointerEvents: 'none'
+                  }} />
+                  
+                  <span style={{ 
+                    fontSize: '1.1rem',
+                    animation: 'iconBounce 3s ease-in-out infinite'
+                  }}>🚀</span>
+                  Send to this device
+                </button>
+              )}
 
-            {file && (
-              <button
-                style={{
-                  width: '100%',
-                  backgroundColor: '#3b82f6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '0.75rem',
+              {!file && (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '1rem',
+                  color: 'rgba(255, 255, 255, 0.4)',
                   fontSize: '0.9rem',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
-                }}
-                onMouseOver={(e) => {
-                  e.target.style.backgroundColor = '#2563eb'
-                  e.target.style.transform = 'translateY(-1px)'
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.backgroundColor = '#3b82f6'
-                  e.target.style.transform = 'translateY(0)'
-                }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onSend(device)
-                }}
-              >
-                📤 Send "{file.name}"
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
+                  fontStyle: 'italic',
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  borderRadius: '12px',
+                  border: '1px dashed rgba(255, 255, 255, 0.1)'
+                }}>
+                  Select a file to send
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      
+      <style jsx>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-5px); }
+          75% { transform: translateX(5px); }
+        }
+        
+        @keyframes buttonShine {
+          0% { left: -100%; }
+          50%, 100% { left: 100%; }
+        }
+        
+        @keyframes iconBounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-2px); }
+        }
+        
+        @keyframes titleShimmer {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
         }
       `}</style>
     </div>
