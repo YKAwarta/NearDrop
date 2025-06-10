@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('api', {
   discoverDevices: () => ipcRenderer.invoke('discover:devices'),
   showFilePicker: () => ipcRenderer.invoke('file:picker'),
   sendFile: (device, filePath) => ipcRenderer.invoke('file:send', device, filePath),
+  cancelSend: () => ipcRenderer.invoke('file:cancel-send'),
+  cancelReceive: () => ipcRenderer.invoke('file:cancel-receive'),
   onFileReceived: (callback) => {
     ipcRenderer.on('file:received', (event, fileInfo) => callback(fileInfo))
   },

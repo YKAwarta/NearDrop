@@ -61,10 +61,10 @@ ipcMain.handle('file:picker', async event => {
       filters: [{ name: 'All Files', extensions: ['*'] }],
     })
     console.log('File picker result:', result)
-    return result.filePaths || []
+    return result
   } catch (error) {
     console.error('Error picking file:', error)
-    return []
+    return { canceled: true, filePaths: [] }
   }
 })
 
@@ -124,6 +124,36 @@ ipcMain.handle('file:send', async (event, device, filePath) => {
     return result
   } catch (error) {
     console.error('Error sending file:', error)
+    return { success: false, message: error.message }
+  }
+})
+
+// Handle cancel send operation
+ipcMain.handle('file:cancel-send', async () => {
+  console.log('IPC call to cancel send')
+  try {
+    if (fileTransferService) {
+      fileTransferService.cancelSend()
+      return { success: true }
+    }
+    return { success: false, message: 'No active transfer' }
+  } catch (error) {
+    console.error('Error canceling send:', error)
+    return { success: false, message: error.message }
+  }
+})
+
+// Handle cancel receive operation
+ipcMain.handle('file:cancel-receive', async () => {
+  console.log('IPC call to cancel receive')
+  try {
+    if (fileTransferService) {
+      fileTransferService.cancelReceive()
+      return { success: true }
+    }
+    return { success: false, message: 'No active transfer' }
+  } catch (error) {
+    console.error('Error canceling receive:', error)
     return { success: false, message: error.message }
   }
 })

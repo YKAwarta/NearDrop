@@ -22,6 +22,12 @@ class FileTransferService {
     this.onTransferRejected = options.onTransferRejected || (() => {}) // Callback when transfer is rejected
     this.onSendProgress = options.onSendProgress || (() => {}) // Callback for sending progress updates
     this.onReceiveProgress = options.onReceiveProgress || (() => {}) // Callback for receiving progress updates
+    
+    // Track active connections for cancellation
+    this.activeSendSocket = null
+    this.activeReceiveSocket = null
+    this.isSendCanceled = false
+    this.isReceiveCanceled = false
   }
 
  /**
@@ -76,132 +82,144 @@ class FileTransferService {
   **/
   sendFile(device, filePath) {
     return new Promise((resolve, reject) => {
-      try {
-        //Validate and normalize the file path
-        const normalizedPath = this.normalizePath(filePath)
+      const normalizedPath = path.resolve(filePath)
+      console.log(
+        `Requesting to send file: ${normalizedPath} to device: ${device.name} at ${device.address}:${device.port}`
+      )
+      
+      // Reset cancellation flag
+      this.isSendCanceled = false
 
-        console.log(
-          `Requesting to send file: ${normalizedPath} to device: ${device.name} at ${device.address}:${device.port}`
-        )
-
-        //Input validation
-        if (!device || !device.address) {
-          return reject(new Error('Invalid device information provided'))
-        }
-
-        //Verify file exists before transfer
-        if (!fs.existsSync(normalizedPath)) {
-          return reject(new Error(`File does not exist: ${normalizedPath}`))
-        }
-
-        //Create a TCP socket connection to the device
-        const client = new net.Socket()
-        client.setTimeout(60000)
-
-        //Establish connection to target device
-        client.connect(device.port, device.address, () => {
-          console.log(`Connected to device: ${device.name} at ${device.address}:${device.port}`)
-
-          //Extract file metadata for request
-          const fileName = path.basename(normalizedPath)
-          const fileStats = fs.statSync(normalizedPath)
-
-          //Send transfer request instead of direct file transfer
-          const transferRequest = JSON.stringify({
-            type: 'TRANSFER_REQUEST',
-            fileName,
-            fileSize: fileStats.size,
-            fileType: path.extname(filePath),
-            senderName: require('os').hostname()
-          })
-
-          console.log(`Sending transfer request for: ${fileName}`)
-          client.write(Buffer.from(transferRequest + '\n'))
-        })
-
-        //Handle response from receiver
-        client.on('data', (data) => {
-          const response = data.toString().trim()
-          console.log(`Received response: ${response}`)
-
-          if (response === 'ACCEPT') {
-            console.log('Transfer approved! Sending file...')
-            
-            //Now send the actual file with progress tracking
-            const fileStats = fs.statSync(normalizedPath)
-            const totalSize = fileStats.size
-            let sentBytes = 0
-            let lastProgressUpdate = 0
-            const startTime = Date.now()
-            
-            const fileStream = fs.createReadStream(normalizedPath)
-            
-            // Track progress as data is sent (throttled to every 25ms)
-            fileStream.on('data', (chunk) => {
-              sentBytes += chunk.length
-              const now = Date.now()
-              
-              // Only update progress every 25ms to make it visible
-              if (now - lastProgressUpdate >= 25 || sentBytes === totalSize) {
-                const progress = Math.round((sentBytes / totalSize) * 100)
-                const elapsed = (now - startTime) / 1000 // seconds
-                const speed = elapsed > 0 ? sentBytes / elapsed : 0 // bytes per second
-                
-                // Emit progress update
-                this.onSendProgress({
-                  fileName: path.basename(normalizedPath),
-                  deviceName: device.name,
-                  progress: progress,
-                  sentBytes: sentBytes,
-                  totalSize: totalSize,
-                  speed: speed // bytes per second
-                })
-                
-                lastProgressUpdate = now
-              }
-            })
-            
-            fileStream.pipe(client)
-
-            fileStream.on('end', () => {
-              console.log(`File sent successfully to ${device.name}`)
-              client.end()
-              resolve({ success: true, message: 'File sent successfully!' })
-            })
-            
-            fileStream.on('error', err => {
-              console.error(`Error reading file:`, err)
-              client.destroy()
-              reject(err)
-            })
-            
-          } else if (response === 'REJECT') {
-            console.log('Transfer rejected by receiver')
-            client.end()
-            resolve({ success: false, message: 'Transfer rejected by recipient' })
-          } else {
-            console.error('Unknown response from receiver:', response)
-            client.destroy()
-            reject(new Error('Unknown response from receiver'))
-          }
-        })
-
-        //Handle connection-level errors
-        client.on('error', err => {
-          console.error(`Error connecting to device ${device.name}:`, err)
-          reject(err)
-        })
-
-        //Handle connection timeout
-        client.on('timeout', () => {
-          console.error(`Connection to ${device.name} timed out`)
+      //Create TCP client connection to target device
+      const client = new net.Socket()
+      this.activeSendSocket = client // Track active socket
+      
+      client.connect(device.port, device.address, () => {
+        console.log(`Connected to device: ${device.name} at ${device.address}:${device.port}`)
+        
+        // Check if canceled during connection
+        if (this.isSendCanceled) {
           client.destroy()
-          reject(new Error('Connection timed out'))
+          this.activeSendSocket = null
+          reject(new Error('Transfer canceled'))
+          return
+        }
+
+        //Extract file metadata for request
+        const fileName = path.basename(normalizedPath)
+        const fileStats = fs.statSync(normalizedPath)
+
+        //Send transfer request instead of direct file transfer
+        const transferRequest = JSON.stringify({
+          type: 'TRANSFER_REQUEST',
+          fileName,
+          fileSize: fileStats.size,
+          fileType: path.extname(filePath),
+          senderName: require('os').hostname()
         })
-      } catch (err) {
-        console.error(`Error sending file: ${err.message}`)
-        reject(err)
-      }
+
+        console.log(`Sending transfer request for: ${fileName}`)
+        client.write(Buffer.from(transferRequest + '\n'))
+      })
+
+      //Handle response from receiver
+      client.on('data', (data) => {
+        const response = data.toString().trim()
+        console.log(`Received response: ${response}`)
+
+        if (response === 'ACCEPT') {
+          console.log('Transfer approved! Sending file...')
+          
+          //Now send the actual file with progress tracking
+          const fileStats = fs.statSync(normalizedPath)
+          const totalSize = fileStats.size
+          let sentBytes = 0
+          let lastProgressUpdate = 0
+          const startTime = Date.now()
+          
+          const fileStream = fs.createReadStream(normalizedPath)
+          
+          // Track progress as data is sent (throttled to every 25ms)
+          fileStream.on('data', (chunk) => {
+            sentBytes += chunk.length
+            const now = Date.now()
+            
+            // Check if canceled during transfer
+            if (this.isSendCanceled) {
+              fileStream.destroy()
+              client.destroy()
+              this.activeSendSocket = null
+              reject(new Error('Transfer canceled'))
+              return
+            }
+            
+            // Only update progress every 25ms to make it visible
+            if (now - lastProgressUpdate >= 25 || sentBytes === totalSize) {
+              const progress = Math.round((sentBytes / totalSize) * 100)
+              const elapsed = (now - startTime) / 1000 // seconds
+              const speed = elapsed > 0 ? sentBytes / elapsed : 0 // bytes per second
+              
+              // Emit progress update
+              this.onSendProgress({
+                fileName: path.basename(normalizedPath),
+                deviceName: device.name,
+                progress: progress,
+                sentBytes: sentBytes,
+                totalSize: totalSize,
+                speed: speed // bytes per second
+              })
+              
+              lastProgressUpdate = now
+            }
+          })
+          
+          fileStream.pipe(client)
+
+          fileStream.on('end', () => {
+            console.log('File sent successfully to', device.name)
+            client.end()
+            this.activeSendSocket = null // Clear active socket
+            this.isSendCanceled = false // Reset flag
+            resolve({ success: true, message: 'File sent successfully!' })
+          })
+          
+          fileStream.on('error', (streamErr) => {
+            console.error('Error reading file:', streamErr)
+            client.destroy()
+            this.activeSendSocket = null // Clear active socket
+            this.isSendCanceled = false // Reset flag
+            reject(streamErr)
+          })
+          
+        } else if (response === 'REJECT') {
+          console.log('Transfer rejected by receiver!')
+          client.end()
+          this.activeSendSocket = null
+          this.isSendCanceled = false // Reset flag
+          resolve({ success: false, message: 'Transfer rejected by recipient' })
+        } else {
+          console.error('Unknown response from receiver:', response)
+          client.destroy()
+          reject(new Error('Unknown response from receiver'))
+        }
+      })
+
+      //Error handling during transfer
+      client.on('error', err => {
+        console.error(`Socket error: ${err.message}`)
+        this.activeSendSocket = null // Clear active socket
+        this.isSendCanceled = false // Reset flag
+        reject(new Error(`Connection error: ${err.message}`))
+      })
+
+      //Handle connection timeout
+      client.on('timeout', () => {
+        console.error('Connection timed out')
+        client.destroy()
+        this.activeSendSocket = null // Clear active socket
+        this.isSendCanceled = false // Reset flag
+        reject(new Error('Connection timed out'))
+      })
     })
   }
 
@@ -218,6 +236,10 @@ class FileTransferService {
     //Create TCP server for file reception
     const server = net.createServer(socket => {
       console.log(`New connection from ${socket.remoteAddress}:${socket.remotePort}`)
+      
+      // Track active receive socket
+      this.activeReceiveSocket = socket
+      this.isReceiveCanceled = false
 
       let requestData = ''
       let fileStream = null
@@ -290,6 +312,21 @@ class FileTransferService {
         } else {
           // We're in file transfer phase - write file data and track progress
           if (fileStream && fileMetadata) {
+            // Check if canceled during transfer
+            if (this.isReceiveCanceled) {
+              fileStream.destroy()
+              socket.destroy()
+              this.activeReceiveSocket = null
+              
+              // Clean up partial file
+              if (savePath && fs.existsSync(savePath)) {
+                fs.unlinkSync(savePath)
+              }
+              
+              console.log('Receive transfer canceled')
+              return
+            }
+            
             fileStream.write(chunk)
             receivedBytes += chunk.length
             const now = Date.now()
@@ -318,25 +355,38 @@ class FileTransferService {
 
       //Handle end of connection
       socket.on('end', () => {
-        if (fileStream && transferApproved) {
+        console.log('Connection closed')
+        if (fileStream) {
           fileStream.end()
-          console.log(`File received and saved successfully to: ${savePath}`)
           
-          // Trigger notification callback
-          this.onFileReceived({
-            fileName: path.basename(savePath),
-            fileSize: fs.statSync(savePath).size,
-            senderAddress: socket.remoteAddress,
-            savePath: savePath
-          })
+          // Clear active socket
+          this.activeReceiveSocket = null
+          this.isReceiveCanceled = false // Reset flag
+          
+          // Only notify on successful complete transfer
+          if (fileMetadata && savePath && receivedBytes === fileMetadata.fileSize) {
+            // Trigger notification callback
+            this.onFileReceived({
+              fileName: path.basename(savePath),
+              fileSize: fs.statSync(savePath).size,
+              senderAddress: socket.remoteAddress,
+              savePath: savePath
+            })
+          }
         }
       })
 
       //Handle errors during transfer
-      socket.on('error', err => {
-        console.error(`Error during transfer: ${err.message}`)
+      socket.on('error', (err) => {
+        console.error('Socket error during receive:', err)
+        this.activeReceiveSocket = null
+        this.isReceiveCanceled = false // Reset flag
         if (fileStream) {
-          fileStream.end()
+          fileStream.destroy()
+        }
+        // Clean up partial file on error
+        if (savePath && fs.existsSync(savePath)) {
+          fs.unlinkSync(savePath)
         }
       })
     })
@@ -353,6 +403,30 @@ class FileTransferService {
     })
 
     return server
+  }
+
+  /**
+   * Cancel active send operation
+   */
+  cancelSend() {
+    console.log('Canceling send operation...')
+    this.isSendCanceled = true
+    if (this.activeSendSocket) {
+      this.activeSendSocket.destroy()
+      this.activeSendSocket = null
+    }
+  }
+
+  /**
+   * Cancel active receive operation
+   */
+  cancelReceive() {
+    console.log('Canceling receive operation...')
+    this.isReceiveCanceled = true
+    if (this.activeReceiveSocket) {
+      this.activeReceiveSocket.destroy()
+      this.activeReceiveSocket = null
+    }
   }
 }
 

@@ -16,8 +16,8 @@ const formatSpeed = (bytesPerSecond) => {
   return formatFileSize(bytesPerSecond) + '/s'
 }
 
-// Minimalistic Progress Bar Component
-const ProgressBar = ({ progress, fileName, deviceName, speed, type, totalSize, transferredBytes }) => {
+// Minimalistic Progress Bar Component - Dark Theme
+const ProgressBar = ({ progress, fileName, deviceName, speed, type, totalSize, transferredBytes, onCancel }) => {
   const progressBlocks = Math.round(progress / 10) // 10 blocks total
   const filledBlocks = '▓'.repeat(progressBlocks)
   const emptyBlocks = '░'.repeat(10 - progressBlocks)
@@ -25,19 +25,22 @@ const ProgressBar = ({ progress, fileName, deviceName, speed, type, totalSize, t
   
   return (
     <div style={{
-      backgroundColor: type === 'sending' ? '#e3f2fd' : '#f3e5f5',
-      border: `1px solid ${type === 'sending' ? '#2196f3' : '#9c27b0'}`,
-      borderRadius: '8px',
-      padding: '1rem',
+      backgroundColor: type === 'sending' ? '#1a2332' : '#2a1a32',
+      border: `1px solid ${type === 'sending' ? '#3b82f6' : '#a855f7'}`,
+      borderRadius: '12px',
+      padding: '1.5rem',
       margin: '1rem 0',
-      fontFamily: 'monospace',
+      fontFamily: 'SF Pro Display, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, monospace',
       animation: isComplete ? 'completePulse 0.5s ease-in-out' : 'fadeIn 0.3s ease-in',
-      boxShadow: isComplete ? '0 0 15px rgba(76, 175, 80, 0.4)' : '0 2px 8px rgba(0,0,0,0.1)'
+      boxShadow: isComplete ? '0 0 20px rgba(34, 197, 94, 0.3)' : '0 4px 20px rgba(0, 0, 0, 0.3)',
+      backdropFilter: 'blur(10px)',
+      position: 'relative'
     }}>
       <div style={{ 
-        fontWeight: 'bold', 
-        color: isComplete ? '#388e3c' : (type === 'sending' ? '#1976d2' : '#7b1fa2'),
-        marginBottom: '0.5rem' 
+        fontWeight: '600', 
+        color: isComplete ? '#22c55e' : (type === 'sending' ? '#60a5fa' : '#c084fc'),
+        marginBottom: '0.8rem',
+        fontSize: '0.9rem'
       }}>
         {isComplete ? '✅' : (type === 'sending' ? '📤' : '📥')} 
         {isComplete ? 'Transfer Complete!' : 
@@ -45,18 +48,19 @@ const ProgressBar = ({ progress, fileName, deviceName, speed, type, totalSize, t
       </div>
       
       <div style={{ 
-        fontSize: '1.2rem', 
-        fontWeight: 'bold',
-        marginBottom: '0.5rem',
-        letterSpacing: '1px',
-        color: isComplete ? '#4caf50' : 'inherit'
+        fontSize: '1.4rem', 
+        fontWeight: '700',
+        marginBottom: '0.8rem',
+        letterSpacing: '2px',
+        color: isComplete ? '#22c55e' : '#ffffff',
+        fontFamily: 'SF Mono, Monaco, Consolas, monospace'
       }}>
         {filledBlocks}{emptyBlocks} {progress}%
       </div>
       
       <div style={{ 
-        fontSize: '0.9rem',
-        color: '#666',
+        fontSize: '0.85rem',
+        color: '#9ca3af',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center'
@@ -68,9 +72,10 @@ const ProgressBar = ({ progress, fileName, deviceName, speed, type, totalSize, t
       {speed > 0 && !isComplete && (
         <div style={{ 
           fontSize: '0.8rem',
-          color: '#888',
-          marginTop: '0.25rem',
-          textAlign: 'center'
+          color: '#6b7280',
+          marginTop: '0.5rem',
+          textAlign: 'center',
+          fontWeight: '500'
         }}>
           ⚡ {formatSpeed(speed)}
         </div>
@@ -79,13 +84,46 @@ const ProgressBar = ({ progress, fileName, deviceName, speed, type, totalSize, t
       {isComplete && (
         <div style={{ 
           fontSize: '0.8rem',
-          color: '#4caf50',
-          marginTop: '0.25rem',
+          color: '#22c55e',
+          marginTop: '0.5rem',
           textAlign: 'center',
-          fontWeight: 'bold'
+          fontWeight: '600'
         }}>
           🎉 Success!
         </div>
+      )}
+      
+      {!isComplete && (
+        <button
+          onClick={onCancel}
+          style={{
+            position: 'absolute',
+            top: '1rem',
+            right: '1rem',
+            backgroundColor: 'rgba(239, 68, 68, 0.2)',
+            border: '1px solid #ef4444',
+            borderRadius: '6px',
+            color: '#ef4444',
+            padding: '0.4rem 0.8rem',
+            fontSize: '0.75rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.3rem'
+          }}
+          onMouseOver={(e) => {
+            e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.3)'
+            e.target.style.transform = 'scale(1.05)'
+          }}
+          onMouseOut={(e) => {
+            e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'
+            e.target.style.transform = 'scale(1)'
+          }}
+        >
+          ✕ Cancel
+        </button>
       )}
     </div>
   )
@@ -166,6 +204,46 @@ function App() {
     }
   }, [])
 
+  // Handle cancel sending
+  const handleCancelSend = async () => {
+    console.log('Canceling send transfer...')
+    try {
+      await window.api.cancelSend()
+      setSendProgress(null)
+      setSendStatus(null)
+      setSendResultPopup({
+        success: false,
+        message: 'Transfer canceled',
+        timestamp: Date.now()
+      })
+      setTimeout(() => {
+        setSendResultPopup(null)
+      }, 3000)
+    } catch (error) {
+      console.error('Error canceling send:', error)
+    }
+  }
+
+  // Handle cancel receiving
+  const handleCancelReceive = async () => {
+    console.log('Canceling receive transfer...')
+    try {
+      await window.api.cancelReceive()
+      setReceiveProgress(null)
+      setNotification({
+        type: 'rejected',
+        message: '❌ Transfer canceled',
+        details: 'You canceled the incoming file transfer',
+        timestamp: Date.now()
+      })
+      setTimeout(() => {
+        setNotification(null)
+      }, 3000)
+    } catch (error) {
+      console.error('Error canceling receive:', error)
+    }
+  }
+
   const handleFileSelect = selectedFiles => {
     //Callback passed to FilePicker. When a file is selected, FilePicker calls this and updates the file state.
     const selectedFile = selectedFiles[0] //Assuming single file selection, we take the first
@@ -224,43 +302,88 @@ function App() {
   }
 
   return (
-    <div style={{ padding: '2rem', fontFamily: 'Arial' }}>
-      <h1>📡 NearDrop</h1>
-      <FilePicker onFileSelect={handleFileSelect} />
-      {file && (
-        <div>
-          <p>📄 File Selected: {file.name}</p>
-          {sendStatus === 'sending' && !sendProgress && <p>🔄 Preparing to send...</p>}
-        </div>
-      )}
-      
-      {/* Send Progress Bar */}
-      {sendProgress && (
-        <ProgressBar
-          progress={sendProgress.progress}
-          fileName={sendProgress.fileName}
-          deviceName={sendProgress.deviceName}
-          speed={sendProgress.speed}
-          totalSize={sendProgress.totalSize}
-          transferredBytes={sendProgress.sentBytes}
-          type="sending"
-        />
-      )}
-      
-      {/* Receive Progress Bar */}
-      {receiveProgress && (
-        <ProgressBar
-          progress={receiveProgress.progress}
-          fileName={receiveProgress.fileName}
-          deviceName={receiveProgress.senderName}
-          speed={receiveProgress.speed}
-          totalSize={receiveProgress.totalSize}
-          transferredBytes={receiveProgress.receivedBytes}
-          type="receiving"
-        />
-      )}
-      
-      <DeviceList file={file} onSend={handleSend} />
+    <div style={{ 
+      padding: '2rem', 
+      fontFamily: 'SF Pro Display, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif',
+      backgroundColor: '#0f0f0f',
+      color: '#ffffff',
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%)'
+    }}>
+      <div style={{
+        maxWidth: '800px',
+        margin: '0 auto'
+      }}>
+        <h1 style={{
+          fontSize: '2.5rem',
+          fontWeight: '700',
+          background: 'linear-gradient(135deg, #3b82f6 0%, #a855f7 100%)',
+          backgroundClip: 'text',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          marginBottom: '2rem',
+          textAlign: 'center'
+        }}>📡 NearDrop</h1>
+        
+        <FilePicker onFileSelect={handleFileSelect} />
+        
+        {file && (
+          <div style={{
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #374151',
+            borderRadius: '12px',
+            padding: '1.5rem',
+            margin: '1rem 0',
+            backdropFilter: 'blur(10px)',
+            userSelect: 'none'
+          }}>
+            <p style={{ 
+              margin: '0',
+              fontSize: '1rem',
+              color: '#e5e7eb',
+              userSelect: 'none'
+            }}>📄 <span style={{ fontWeight: '600' }}>Selected:</span> {file.name}</p>
+            {sendStatus === 'sending' && !sendProgress && (
+              <p style={{ 
+                margin: '0.5rem 0 0 0',
+                fontSize: '0.9rem',
+                color: '#60a5fa',
+                userSelect: 'none'
+              }}>🔄 Preparing to send...</p>
+            )}
+          </div>
+        )}
+        
+        {/* Send Progress Bar */}
+        {sendProgress && (
+          <ProgressBar
+            progress={sendProgress.progress}
+            fileName={sendProgress.fileName}
+            deviceName={sendProgress.deviceName}
+            speed={sendProgress.speed}
+            totalSize={sendProgress.totalSize}
+            transferredBytes={sendProgress.sentBytes}
+            type="sending"
+            onCancel={handleCancelSend}
+          />
+        )}
+        
+        {/* Receive Progress Bar */}
+        {receiveProgress && (
+          <ProgressBar
+            progress={receiveProgress.progress}
+            fileName={receiveProgress.fileName}
+            deviceName={receiveProgress.senderName}
+            speed={receiveProgress.speed}
+            totalSize={receiveProgress.totalSize}
+            transferredBytes={receiveProgress.receivedBytes}
+            type="receiving"
+            onCancel={handleCancelReceive}
+          />
+        )}
+        
+        <DeviceList file={file} onSend={handleSend} />
+      </div>
       
       {/* File Received/Rejected Notification */}
       {notification && (
@@ -268,36 +391,42 @@ function App() {
           position: 'fixed',
           top: '20px',
           right: '20px',
-          backgroundColor: notification.type === 'received' ? '#4CAF50' : '#f44336',
+          backgroundColor: notification.type === 'received' ? 'rgba(34, 197, 94, 0.95)' : 'rgba(239, 68, 68, 0.95)',
           color: 'white',
-          padding: '1rem',
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          padding: '1.5rem',
+          borderRadius: '12px',
+          boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
+          backdropFilter: 'blur(10px)',
+          border: `1px solid ${notification.type === 'received' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
           zIndex: 1000,
-          maxWidth: '350px',
+          maxWidth: '380px',
           animation: 'slideIn 0.3s ease-out'
         }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>
+          <div style={{ fontWeight: '600', marginBottom: '0.5rem', fontSize: '1rem' }}>
             {notification.message}
           </div>
-          <div style={{ fontSize: '0.9rem', opacity: 0.9 }}>
+          <div style={{ fontSize: '0.85rem', opacity: 0.9 }}>
             {notification.details}
           </div>
           <button 
             onClick={() => setNotification(null)}
             style={{
               position: 'absolute',
-              top: '5px',
-              right: '8px',
+              top: '8px',
+              right: '12px',
               background: 'none',
               border: 'none',
               color: 'white',
-              fontSize: '1.2rem',
+              fontSize: '1.4rem',
               cursor: 'pointer',
               padding: '0',
-              width: '20px',
-              height: '20px'
+              width: '24px',
+              height: '24px',
+              opacity: 0.7,
+              transition: 'opacity 0.2s'
             }}
+            onMouseOver={(e) => e.target.style.opacity = '1'}
+            onMouseOut={(e) => e.target.style.opacity = '0.7'}
           >
             ×
           </button>
@@ -308,35 +437,41 @@ function App() {
       {sendResultPopup && (
         <div style={{
           position: 'fixed',
-          top: '80px',
+          top: '90px',
           right: '20px',
-          backgroundColor: sendResultPopup.success ? '#4CAF50' : '#f44336',
+          backgroundColor: sendResultPopup.success ? 'rgba(34, 197, 94, 0.95)' : 'rgba(239, 68, 68, 0.95)',
           color: 'white',
-          padding: '1rem',
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          padding: '1.5rem',
+          borderRadius: '12px',
+          boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
+          backdropFilter: 'blur(10px)',
+          border: `1px solid ${sendResultPopup.success ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
           zIndex: 1000,
-          maxWidth: '300px',
+          maxWidth: '320px',
           animation: 'slideIn 0.3s ease-out'
         }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>
+          <div style={{ fontWeight: '600', marginBottom: '0.5rem' }}>
             {sendResultPopup.success ? '✅' : '❌'} {sendResultPopup.message}
           </div>
           <button 
             onClick={() => setSendResultPopup(null)}
             style={{
               position: 'absolute',
-              top: '5px',
-              right: '8px',
+              top: '8px',
+              right: '12px',
               background: 'none',
               border: 'none',
               color: 'white',
-              fontSize: '1.2rem',
+              fontSize: '1.4rem',
               cursor: 'pointer',
               padding: '0',
-              width: '20px',
-              height: '20px'
+              width: '24px',
+              height: '24px',
+              opacity: 0.7,
+              transition: 'opacity 0.2s'
             }}
+            onMouseOver={(e) => e.target.style.opacity = '1'}
+            onMouseOut={(e) => e.target.style.opacity = '0.7'}
           >
             ×
           </button>
@@ -344,6 +479,20 @@ function App() {
       )}
 
       <style>{`
+        * {
+          -webkit-user-select: none !important;
+          -moz-user-select: none !important;
+          -ms-user-select: none !important;
+          user-select: none !important;
+        }
+        
+        input, textarea {
+          -webkit-user-select: text !important;
+          -moz-user-select: text !important;
+          -ms-user-select: text !important;
+          user-select: text !important;
+        }
+        
         @keyframes slideIn {
           from {
             transform: translateX(100%);
@@ -369,15 +518,15 @@ function App() {
         @keyframes completePulse {
           0% {
             transform: scale(1);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
           }
           50% {
             transform: scale(1.02);
-            box-shadow: 0 0 20px rgba(76, 175, 80, 0.6);
+            box-shadow: 0 0 30px rgba(34, 197, 94, 0.6);
           }
           100% {
             transform: scale(1);
-            box-shadow: 0 0 15px rgba(76, 175, 80, 0.4);
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
           }
         }
       `}</style>
