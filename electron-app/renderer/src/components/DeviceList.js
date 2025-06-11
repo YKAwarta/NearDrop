@@ -4,46 +4,60 @@ function DeviceList({ file, onSend }) {
   const [devices, setDevices] = useState([])
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState(null)
-  const [initialLoad, setInitialLoad] = useState(true)
-  const [autoRefresh, setAutoRefresh] = useState(true)
 
-  const fetchDevices = async () => {
-    // Don't show full loading state if we already have devices
-    if (devices.length === 0) {
-      setInitialLoad(true)
-    } else {
-      setIsRefreshing(true)
-    }
+  const fetchDevices = async (isManualRefresh = false) => {
+    // Both manual and auto refresh show the same spinning circle
+    setIsRefreshing(true)
     
     setError(null)
     try {
       const discoveredDevices = await window.api.discoverDevices()
       console.log('DeviceList received devices:', discoveredDevices)
-      setDevices(discoveredDevices)
+      
+      // Always use smart update - never reset the entire list
+      setDevices(currentDevices => {
+        // Create a map of current devices by ID for quick lookup
+        const currentDeviceMap = new Map(currentDevices.map(device => [device.id, device]))
+        const newDeviceMap = new Map(discoveredDevices.map(device => [device.id, device]))
+        
+        // Start with current devices
+        let updatedDevices = [...currentDevices]
+        
+        // Remove devices that are no longer detected
+        updatedDevices = updatedDevices.filter(device => newDeviceMap.has(device.id))
+        
+        // Add new devices that weren't there before
+        discoveredDevices.forEach(newDevice => {
+          if (!currentDeviceMap.has(newDevice.id)) {
+            updatedDevices.push(newDevice)
+          }
+        })
+        
+        // Update existing devices with new information (in case IP/port changed)
+        updatedDevices = updatedDevices.map(device => {
+          const updatedDevice = newDeviceMap.get(device.id)
+          return updatedDevice || device
+        })
+        
+        return updatedDevices
+      })
     } catch (err) {
       console.error('Error fetching devices:', err)
       setError('Failed to discover devices')
     } finally {
-      setInitialLoad(false)
       setIsRefreshing(false)
     }
   }
 
   useEffect(() => {
-    fetchDevices()
-    
-    // Only set up auto-refresh interval if autoRefresh is enabled
-    let interval
-    if (autoRefresh) {
-      interval = setInterval(fetchDevices, 10000)
-    }
-    
-    return () => {
-      if (interval) {
-        clearInterval(interval)
-      }
-    }
-  }, [autoRefresh])
+    fetchDevices(false) // Initial load uses smart update too
+  }, [])
+
+  useEffect(() => {
+    // Auto-refresh every 7 seconds
+    const interval = setInterval(() => fetchDevices(false), 7000)
+    return () => clearInterval(interval)
+  }, [])
 
   const getPlatformIcon = (platform) => {
     switch (platform) {
@@ -58,74 +72,8 @@ function DeviceList({ file, onSend }) {
     onSend(device)
   }
 
-  const toggleAutoRefresh = () => {
-    setAutoRefresh(!autoRefresh)
-  }
-
-  if (initialLoad) {
-    return (
-      <div style={{
-        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02))',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        borderRadius: '20px',
-        padding: '3rem',
-        textAlign: 'center',
-        margin: '2rem 0',
-        backdropFilter: 'blur(15px)',
-        boxShadow: '0 15px 35px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-        animation: 'slideInFromBottom 0.6s ease-out'
-      }}>
-        {/* Animated loading rings */}
-        <div style={{
-          position: 'relative',
-          display: 'inline-block',
-          marginBottom: '1.5rem'
-        }}>
-          <div style={{
-            width: '60px',
-            height: '60px',
-            border: '3px solid rgba(59, 130, 246, 0.2)',
-            borderTop: '3px solid #3b82f6',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            willChange: 'transform'
-          }} />
-          <div style={{
-            position: 'absolute',
-            top: '10px',
-            left: '10px',
-            width: '40px',
-            height: '40px',
-            border: '2px solid rgba(139, 92, 246, 0.2)',
-            borderTop: '2px solid #8b5cf6',
-            borderRadius: '50%',
-            animation: 'spin 1.5s linear infinite reverse',
-            willChange: 'transform'
-          }} />
-        </div>
-        
-        <h3 style={{
-          color: '#ffffff',
-          fontSize: '1.3rem',
-          fontWeight: '600',
-          marginBottom: '0.5rem',
-          background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-          backgroundClip: 'text',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent'
-        }}>
-          🔍 Discovering devices...
-        </h3>
-        <p style={{
-          color: 'rgba(255, 255, 255, 0.6)',
-          fontSize: '0.9rem',
-          margin: 0,
-          animation: 'pulse 2s ease-in-out infinite'
-        }}>
-          Scanning network for nearby devices
-        </p>
-      </div>
-    )
+  const handleManualRefresh = () => {
+    fetchDevices(true) // Manual refresh with same animation
   }
 
   if (error) {
@@ -144,7 +92,7 @@ function DeviceList({ file, onSend }) {
         <h3 style={{ color: '#ef4444', marginBottom: '0.5rem' }}>Error</h3>
         <p style={{ color: 'rgba(255, 255, 255, 0.7)', margin: '0 0 1.5rem 0' }}>{error}</p>
         <button
-          onClick={fetchDevices}
+          onClick={handleManualRefresh}
           style={{
             background: 'linear-gradient(135deg, #ef4444, #dc2626)',
             color: 'white',
@@ -167,7 +115,7 @@ function DeviceList({ file, onSend }) {
       margin: '2rem 0',
       animation: 'fadeIn 0.6s ease-out'
     }}>
-      {/* Header with refresh button and auto-refresh toggle */}
+      {/* Header with refresh button */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -175,130 +123,78 @@ function DeviceList({ file, onSend }) {
         marginBottom: '1.5rem',
         animation: 'slideInFromLeft 0.6s ease-out'
       }}>
-        <h2 style={{
-          color: '#ffffff',
-          fontSize: '1.8rem',
-          fontWeight: '700',
-          margin: 0,
-          background: 'linear-gradient(135deg, #ffffff, #e2e8f0)',
-          backgroundClip: 'text',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          animation: 'titleShimmer 4s ease-in-out infinite'
-        }}>
-          🌐 Nearby Devices {devices.length > 0 && `(${devices.length})`}
-        </h2>
-        
         <div style={{
           display: 'flex',
           alignItems: 'center',
           gap: '1rem'
         }}>
-          {/* Auto-refresh toggle */}
-          <div style={{
+          <h2 style={{
+            color: '#ffffff',
+            fontSize: '1.8rem',
+            fontWeight: '700',
+            margin: 0,
+            background: 'linear-gradient(135deg, #ffffff, #e2e8f0)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            animation: 'titleShimmer 4s ease-in-out infinite'
+          }}>
+            🌐 Nearby Devices {devices.length > 0 && `(${devices.length})`}
+          </h2>
+          
+          {/* Unified refresh indicator for both auto and manual */}
+          {isRefreshing && (
+            <div style={{
+              width: '16px',
+              height: '16px',
+              border: '2px solid rgba(59, 130, 246, 0.2)',
+              borderTop: '2px solid #3b82f6',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              willChange: 'transform'
+            }} />
+          )}
+        </div>
+        
+        {/* Manual refresh button - minimalist */}
+        <button
+          onClick={handleManualRefresh}
+          disabled={isRefreshing}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'rgba(255, 255, 255, 0.6)',
+            padding: '0.5rem',
+            cursor: isRefreshing ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s ease-out',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem',
-            background: 'rgba(255, 255, 255, 0.05)',
-            padding: '0.5rem 0.8rem',
-            borderRadius: '12px',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            backdropFilter: 'blur(8px)'
+            justifyContent: 'center',
+            borderRadius: '8px',
+            willChange: 'transform, color',
+            width: '36px',
+            height: '36px'
+          }}
+          onMouseOver={(e) => {
+            if (!isRefreshing) {
+              e.target.style.color = 'rgba(255, 255, 255, 0.9)'
+              e.target.style.transform = 'scale(1.1)'
+            }
+          }}
+          onMouseOut={(e) => {
+            if (!isRefreshing) {
+              e.target.style.color = 'rgba(255, 255, 255, 0.6)'
+              e.target.style.transform = 'scale(1)'
+            }
+          }}
+        >
+          <span style={{
+            fontSize: '1.1rem',
+            opacity: isRefreshing ? '0.4' : '1'
           }}>
-            <span style={{
-              fontSize: '0.85rem',
-              color: 'rgba(255, 255, 255, 0.7)',
-              fontWeight: '500'
-            }}>
-              Auto-refresh
-            </span>
-            <button
-              onClick={toggleAutoRefresh}
-              style={{
-                position: 'relative',
-                width: '42px',
-                height: '22px',
-                borderRadius: '11px',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                background: autoRefresh 
-                  ? 'linear-gradient(135deg, #10b981, #06b6d4)' 
-                  : 'rgba(255, 255, 255, 0.2)',
-                boxShadow: autoRefresh 
-                  ? '0 4px 12px rgba(16, 185, 129, 0.3)' 
-                  : '0 2px 8px rgba(0, 0, 0, 0.2)'
-              }}
-            >
-              <div style={{
-                position: 'absolute',
-                top: '2px',
-                left: autoRefresh ? '22px' : '2px',
-                width: '18px',
-                height: '18px',
-                borderRadius: '50%',
-                background: 'white',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
-              }} />
-            </button>
-            {autoRefresh && (
-              <span style={{
-                fontSize: '0.7rem',
-                color: '#10b981',
-                fontWeight: '600',
-                animation: 'pulse 2s ease-in-out infinite'
-              }}>
-                ON
-              </span>
-            )}
-          </div>
-          
-          {/* Manual refresh button */}
-          <button
-            onClick={fetchDevices}
-            disabled={isRefreshing}
-            style={{
-              background: isRefreshing ? 
-                'linear-gradient(135deg, rgba(59, 130, 246, 0.5), rgba(139, 92, 246, 0.5))' :
-                'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2))',
-              border: `1px solid ${isRefreshing ? 'rgba(59, 130, 246, 0.8)' : 'rgba(59, 130, 246, 0.4)'}`,
-              borderRadius: '12px',
-              color: '#ffffff',
-              padding: '0.7rem 1.2rem',
-              cursor: isRefreshing ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s ease-out',
-              fontWeight: '500',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              backdropFilter: 'blur(8px)',
-              fontSize: '0.9rem',
-              willChange: 'transform, background'
-            }}
-            onMouseOver={(e) => {
-              if (!isRefreshing) {
-                e.target.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.4), rgba(139, 92, 246, 0.4))'
-                e.target.style.transform = 'translate3d(0, -2px, 0) scale(1.03)'
-              }
-            }}
-            onMouseOut={(e) => {
-              if (!isRefreshing) {
-                e.target.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2))'
-                e.target.style.transform = 'translate3d(0, 0, 0) scale(1)'
-              }
-            }}
-          >
-            <span style={{
-              animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
-              fontSize: '1rem',
-              willChange: 'transform'
-            }}>
-              🔄
-            </span>
-            {isRefreshing ? 'Refreshing...' : 'Refresh'}
-          </button>
-        </div>
+            🔄
+          </span>
+        </button>
       </div>
 
       {devices.length === 0 ? (
@@ -367,7 +263,7 @@ function DeviceList({ file, onSend }) {
                 e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03))'
               }}
             >
-              {/* Simplified status indicator */}
+              {/* Status indicator */}
               <div style={{
                 position: 'absolute',
                 top: '1rem',
@@ -465,7 +361,7 @@ function DeviceList({ file, onSend }) {
                     e.target.style.boxShadow = '0 4px 20px rgba(16, 185, 129, 0.3)'
                   }}
                 >
-                  {/* Simplified button shine effect */}
+                  {/* Button shine effect */}
                   <div style={{
                     position: 'absolute',
                     top: 0,
