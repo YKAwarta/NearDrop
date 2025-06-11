@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import FilePicker from './components/FilePicker' //Pull in our subcomponents pt.1
 import DeviceList from './components/DeviceList' //Pull in our subcomponents pt.2
+import DragDropZone from './components/DragDropZone'
 
 // Helper function to format file sizes
 const formatFileSize = (bytes) => {
@@ -359,10 +360,13 @@ function App() {
     //Callback passed to FilePicker. When a file is selected, FilePicker calls this and updates the file state.
     const selectedFile = selectedFiles[0] //Assuming single file selection, we take the first
     console.log('Selected file:', selectedFile) //Log the selected file for debugging
-    setFile(selectedFile)
-    setSendStatus(null) //Reset send status when a new file is selected
-    setSendResultPopup(null) //Reset send result popup
-    setSendProgress(null) //Reset send progress
+    
+    if(selectedFile){
+      setFile(selectedFile)
+      setSendStatus(null) //Reset send status when a new file is selected
+      setSendResultPopup(null) //Reset send result popup
+      setSendProgress(null) //Reset send progress
+    }
   }
 
   const handleSend = async device => {
@@ -482,8 +486,10 @@ function App() {
         <div style={{
           animation: 'containerFloat 10s ease-in-out infinite'
         }}>
-          <FilePicker onFileSelect={handleFileSelect} />
+          <DragDropZone onFileSelect={handleFileSelect} />
         </div>
+
+        
         
         {file && (
           <div style={{
