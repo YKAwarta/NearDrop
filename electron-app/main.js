@@ -1,10 +1,9 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const os = require('os')
-const DiscoveryService = require('../core/discovery')
+const discoveryManager = require('../core/discovery-manager')
 const FileTransferService = require('../core/transfer')
 
-let discoveryService
 let fileTransferService
 let mainWindow
 
@@ -40,11 +39,7 @@ function logNetworkInfo() {
 // Handle device discovery IPC call
 ipcMain.handle('discover:devices', async () => {
   try {
-    if (!discoveryService) {
-      discoveryService = new DiscoveryService()
-    }
-
-    const devices = await discoveryService.browseForDevices()
+    const devices = await discoveryManager.browseForDevices()
     console.log('Discovered devices:', devices)
     return devices
   } catch (error) {
@@ -161,9 +156,8 @@ ipcMain.handle('file:cancel-receive', async () => {
 app.whenReady().then(() => {
   createWindow()
 
-  // Start advertising this device
-  discoveryService = new DiscoveryService()
-  discoveryService.advertise(5001)
+  // Start advertising this device using discovery manager
+  discoveryManager.startAdvertising({ port: 5001, name: os.hostname() })
 
   fileTransferService = new FileTransferService({
     onFileReceived: (fileInfo) => {
@@ -206,10 +200,22 @@ app.whenReady().then(() => {
     }
   })
   fileTransferService.startReceiver()
+
+  // Listen for real-time device discovery events
+  discoveryManager.on('deviceFound', (device) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('device:found', device)
+    }
+  })
+
+  discoveryManager.on('deviceLost', (device) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('device:lost', device)
+    }
+  })
 })
 
-app.on('before-quit', () => {
-  if (discoveryService) {
-    discoveryService.stop()
-  }
+app.on('before-quit', async () => {
+  // Clean up discovery manager
+  await discoveryManager.cleanup()
 })
